@@ -44,4 +44,21 @@ describe('live mutation retries', () => {
     vi.stubGlobal('fetch',vi.fn(async()=>new Response('<html>Sign in</html>',{headers:{'Content-Type':'text/html'}})));
     await expect(liveTransport.request('GET','/api/me')).rejects.toThrow('did not return warehouse data');
   });
+  it('preserves the same mutation receipt after a truncated or invalid JSON response', async () => {
+    const requests: RequestInit[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      requests.push(init);
+      if (requests.length === 1) return new Response('{"event_id":', {headers: {'Content-Type': 'application/json'}});
+      if (requests.length === 2) return Response.json(null);
+      return ok();
+    }));
+    const opts = {body: {part_id: 'retry-truncated', slot_id: 'slot-a', delta: 1}};
+    await expect(liveTransport.request('POST', '/api/stock/adjust', opts)).rejects.toThrow('response was incomplete');
+    await expect(liveTransport.request('POST', '/api/stock/adjust', opts)).rejects.toThrow('response was incomplete');
+    await liveTransport.request('POST', '/api/stock/adjust', opts);
+    await liveTransport.request('POST', '/api/stock/adjust', opts);
+    expect(key(requests[0])).toBe(key(requests[1]));
+    expect(key(requests[1])).toBe(key(requests[2]));
+    expect(key(requests[3])).not.toBe(key(requests[2]));
+  });
 });

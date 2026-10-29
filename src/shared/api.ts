@@ -134,8 +134,17 @@ export const liveTransport: Transport = {
     res.headers.forEach((v, k) => (headers[k.toLowerCase() === 'etag' ? 'ETag' : k] = v));
     const type = res.headers.get('content-type') ?? '';
     let body: unknown = null;
-    if (res.status !== 304)
-      body = type.includes('json') ? await res.json().catch(() => null) : await res.text();
+    if (res.status !== 304) {
+      try {
+        body = type.includes('json') ? await res.json() : await res.text();
+        if (type.includes('json') && (body === null || typeof body !== 'object'))
+          throw new Error('Invalid API response');
+      } catch {
+        // A response may be truncated after the write committed. Keep the receipt so
+        // retrying cannot apply an additive stock operation a second time.
+        throw new ApiError(503, { error: 'server_error', message: 'The server response was incomplete. Retry this action; its request ID is preserved to prevent duplicate changes.' });
+      }
+    }
     if (res.status < 500) receipt?.settle();
     return { status: res.status, body, headers };
   },

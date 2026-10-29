@@ -265,12 +265,19 @@ describe('Cloudflare Access signed token verification', () => {
     ).toBe(200);
     expect(fetch).toHaveBeenCalledWith(
       `https://${env.CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`,
-      expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) }),
+      expect.objectContaining({ redirect: 'manual', signal: expect.any(AbortSignal) }),
     );
   });
 
   it('fails closed if certificates cannot be fetched, parsed, or matched', async () => {
     for (const response of [
+      Response.json(
+        { keys: [{ ...publicKey, kid: 'current' }] },
+        {
+          status: 302,
+          headers: { Location: 'https://attacker.example/key' },
+        },
+      ),
       new Response('unavailable', { status: 503 }),
       new Response('{'),
       Response.json({ keys: [] }),

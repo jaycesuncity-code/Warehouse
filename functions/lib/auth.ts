@@ -74,7 +74,8 @@ async function fetchKeys(config: AccessConfiguration): Promise<SigningKeys> {
     const timeout = setTimeout(() => controller.abort(), 5_000);
     try {
       const response = await fetch(config.certificatesUrl, {
-        redirect: 'error',
+        // Workers supports only follow/manual. Reject every redirect via !ok below.
+        redirect: 'manual',
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
