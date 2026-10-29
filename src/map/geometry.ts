@@ -587,6 +587,26 @@ export function collisionSegments(walls: WallSeg[], shelves: Footprint[]): Seg[]
 
 /** Moves from `from` toward `to`, sliding along walls/shelves so a circle of `radius` never crosses them. */
 export function collideMove(from: Vec, to: Vec, radius: number, segs: Seg[]): Vec {
+  const delta = sub(to, from);
+  // A slow running frame can cross a wall before endpoint projection runs. Resolve small steps
+  // from the approaching side so contact is reached and tangential movement is preserved.
+  // Normal walk frames need at most four steps; retain bounded work for an unexpectedly large move.
+  const steps = Math.min(64, Math.max(1, Math.ceil(len(delta) / Math.max(radius / 2, 0.5))));
+  if (steps === 1) return collideStep(from, to, radius, segs);
+  const step = mul(delta, 1 / steps);
+  let position = from;
+  let adjusted = false;
+  for (let index = 0; index < steps; index++) {
+    const target = add(position, step);
+    const next = collideStep(position, target, radius, segs);
+    adjusted ||= next.x !== target.x || next.y !== target.y;
+    position = next;
+  }
+  // An unobstructed path ends at its exact requested point, without accumulated rounding drift.
+  return adjusted ? position : to;
+}
+
+function collideStep(from: Vec, to: Vec, radius: number, segs: Seg[]): Vec {
   let p = { ...to };
   for (let iter = 0; iter < 4; iter++) {
     let moved = false;

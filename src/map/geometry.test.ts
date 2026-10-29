@@ -262,6 +262,33 @@ describe("walls, walking, fit", () => {
     expect(blocked.x).toBeGreaterThanOrEqual(9);
     expect(throughDoor).toEqual({ x: -20, y: center });
   });
+  it('reaches wall clearance from the CI position when a running frame crosses the wall', () => {
+    const { walls } = buildWalls(DEMO_ZONES, DEMO_OPENINGS);
+    const segments = collisionSegments(walls, DEMO_SHELVES);
+    const from = { x: 470.04087999999814, y: 912 };
+    const runStep = 66 * 2.6 * 0.1; // capped 100ms frame at the application's running speed
+    const moved = collideMove(from, { x: from.x + runStep, y: from.y }, 9, segments);
+    expect(moved.x).toBeCloseTo(473.99, 6);
+    expect(moved.y).toBe(from.y);
+  });
+  it('preserves tangential motion when a long diagonal step presses into a wall', () => {
+    const segments = [{ a: { x: 483, y: 0 }, b: { x: 483, y: 2000 } }];
+    const from = { x: 473.99, y: 912 };
+    const moved = collideMove(from, { x: from.x + 12, y: from.y + 12 }, 9, segments);
+    expect(moved.x).toBeCloseTo(473.99, 6);
+    expect(moved.y).toBeCloseTo(924, 6);
+  });
+  it.each([1 / 60, 1 / 30, 0.1])('running reaches the same wall clearance with %ss frames', frame => {
+    const { walls } = buildWalls(DEMO_ZONES, DEMO_OPENINGS);
+    const segments = collisionSegments(walls, DEMO_SHELVES);
+    let position = { x: 33.01, y: 912 };
+    for (let index = 0; index < 200; index++) {
+      position = collideMove(position, { x: position.x + 66 * 2.6 * frame, y: 912 }, 9, segments);
+      expect(position.x).toBeLessThanOrEqual(474);
+      expect(position.y).toBeCloseTo(912, 6);
+    }
+    expect(position.x).toBeCloseTo(473.99, 6);
+  });
   it("fit check by bounding box", () => {
     // best of six orientations: 15/1.25 x 7/1 x 18/1.25 -> 12 x 7 x 14
     expect(fitCount({ w: 15, h: 7, d: 18 }, { w: 1.25, h: 1.25, d: 1 })).toBe(12 * 7 * 14);
