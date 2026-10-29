@@ -111,6 +111,7 @@ export interface SlotGeometry {
 
 /** A slot as returned inside GET /api/shelves/:shelf_id (with its occupants). */
 export interface Slot extends SlotGeometry {
+  low?: boolean;
   parts: SlotPart[];
 }
 
@@ -141,6 +142,7 @@ export interface Shelf extends ShelfGeometry {
 
 /** A slot inside GET /api/layout: aggregate numbers instead of full parts. */
 export interface LayoutSlot extends SlotGeometry {
+  departments: string[];
   part_count: number;
   on_hand_total: number;
   par_total: number;
@@ -254,6 +256,7 @@ export interface SlotConflict {
 }
 
 export interface ApiErrorBody {
+  slots?: {slot_id: string; location_code: string; reason: string}[];
   error: ErrorCode;
   message: string;
   /** 400 validation */
@@ -290,6 +293,7 @@ export interface MutationBase {
 
 // --- parts ---
 export interface PartSearchParams {
+  unassigned?: boolean;
   q?: string;
   category?: string;
   limit?: number;
@@ -366,6 +370,7 @@ export interface DeleteLocationRequest {
   slot_id: SlotId;
 }
 export interface LocationMutationResponse extends MutationBase {
+  affected_shelf_ids: string[];
   part: Part;
   /** For swap: the parts that were displaced into the old slot. */
   displaced_parts?: CoLocatedPart[];
@@ -412,6 +417,7 @@ export interface DeleteShelfRequest {
 
 // --- slots ---
 export interface CreateSlotRequest {
+  slot_no?: number;
   shelf_id: ShelfId;
   row_index: number;
   col_start: number;
@@ -443,6 +449,7 @@ export interface ResizeSlotRequest {
   version: number;
 }
 export interface SlotMutationResponse extends MutationBase {
+  shelf_id: string;
   slot: Slot;
 }
 export interface OkResponse extends MutationBase {
@@ -476,6 +483,7 @@ export interface EventsResponse {
   items: ApiEvent[];
 }
 export interface UndoResponse extends MutationBase {
+  affected_shelf_ids: string[];
   undone: ApiEvent;
 }
 
@@ -503,6 +511,7 @@ export const ENDPOINTS = {
   registerParts: { method: 'POST', path: '/api/parts/register', role: 'editor' },
   adjustStock: { method: 'POST', path: '/api/stock/adjust', role: 'editor' },
   moveLocation: { method: 'POST', path: '/api/locations/move', role: 'editor' },
+  patchLocation: {method:'PATCH', path:'/api/locations',role:'editor'},
   deleteLocation: { method: 'DELETE', path: '/api/locations', role: 'editor' },
   listShelves: { method: 'GET', path: '/api/shelves', role: 'any' },
   getShelf: { method: 'GET', path: '/api/shelves/:shelf_id', role: 'any' },
@@ -539,3 +548,22 @@ export function roleAtLeast(role: Role, needed: 'any' | 'editor' | 'admin'): boo
 export const DEFAULT_WALL_HEIGHT_IN = 192;
 export const DEFAULT_DOOR_HEIGHT_IN = 84;
 export const DEFAULT_OVERHEAD_HEIGHT_IN = 168;
+
+export type Row = ShelfRow;
+export type ShelfBase = ShelfGeometry;
+export type ShelfCreate = CreateShelfRequest;
+export type ShelfPatch = PatchShelfRequest;
+export type SlotCreate = CreateSlotRequest;
+export type SlotPatch = PatchSlotRequest;
+export type PartPatch = PatchPartRequest;
+export type PartSearchResult = PartSearchResponse;
+export type OpeningPatch = PatchOpeningRequest;
+export type ZonePatch = PatchZoneRequest;
+export type EventRecord = ApiEvent;
+export type SlotWrite = Slot & MutationBase & { shelf_id: string };
+export type LocationWrite = LocationMutationResponse;
+export type UndoWrite = UndoResponse;
+export interface LocationPatch { part_id: string; slot_id: string; par_qty: number; version: number }
+
+export type SlotBase = SlotGeometry;
+export type SlotPartRef = SlotPart;

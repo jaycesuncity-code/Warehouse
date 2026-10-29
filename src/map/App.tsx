@@ -1,6 +1,7 @@
+import { DemoBadge } from "../shared/ui/Header";
 import { useEffect, useState } from "react";
 import { api } from "../shared/api";
-import { DemoBadge, DemoControls, Header, RoleBadge } from "../shared/ui";
+import { DemoControls, Header, RoleBadge } from "../shared/ui";
 import {
   applyDeepLink,
   assignPart,

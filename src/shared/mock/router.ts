@@ -16,7 +16,7 @@ import {
   patchZone,
 } from './endpoints/building';
 import { listEvents, undoEvent } from './endpoints/events';
-import { deleteLocation, moveLocation } from './endpoints/locations';
+import { patchLocation, deleteLocation, moveLocation } from './endpoints/locations';
 import { exportCsv, getLayout, getMe } from './endpoints/misc';
 import { createPart, getPart, patchPart, registerParts, searchParts } from './endpoints/parts';
 import {
@@ -51,6 +51,7 @@ export const ROUTES: Route[] = [
   { name: 'patchPart', write: true, handler: patchPart },
   { name: 'adjustStock', write: true, handler: adjustStock },
   { name: 'moveLocation', write: true, handler: moveLocation },
+  { name: 'patchLocation', write:true, handler:patchLocation },
   { name: 'deleteLocation', write: true, handler: deleteLocation },
   { name: 'listShelves', write: false, handler: listShelves },
   { name: 'getShelf', write: false, handler: getShelf },

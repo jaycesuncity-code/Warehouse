@@ -5,7 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildWalls, collideMove, collisionSegments, zoneAt } from "../geometry";
-import { frontDir, shelfToMap } from "../../shared/units";
+import { frontDir, shelfToMap } from "../units";
 import { getMap, selectedShelfId, setMap, shelfById, useMap } from "../store";
 import { EYE_HEIGHT_IN, rig } from "./CameraRig";
 

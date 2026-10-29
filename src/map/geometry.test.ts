@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Zone } from "../shared/contract";
-import { DEMO_OPENINGS, DEMO_SHELVES, DEMO_ZONES } from "../shared/mock/demo-data";
-import { overlappingSlots, slotBoundsProblem } from "../shared/mock/rules";
-import { frontDir, mapToShelf, shelfCorners, shelfToMap, sheetToMap } from "../shared/units";
+import { DEMO_DATA } from "../shared/mock/demo-data";
+const {openings: DEMO_OPENINGS, shelves: DEMO_SHELVES, zones: DEMO_ZONES} = DEMO_DATA;
+import { overlappingSlots, slotBoundsProblem } from "./gridRules";
+import { frontDir, mapToShelf, shelfCorners, shelfToMap, sheetToMap } from "./units";
 import {
   aisleWidth,
   buildWalls,

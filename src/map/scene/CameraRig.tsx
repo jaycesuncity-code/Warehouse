@@ -7,7 +7,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN } from "../../shared/units";
+import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN } from "../units";
 import { useMap, type CameraGoal } from "../store";
 import { DEG } from "./common";
 import { labelView } from "./labels";

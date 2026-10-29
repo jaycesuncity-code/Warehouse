@@ -74,7 +74,7 @@ export const createSlot: Handler = (c) => {
   };
   c.tx.insert('slots', slot);
   const ev = c.tx.finish('create', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) }, 201);
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) }, 201);
 };
 
 export const patchSlot: Handler = (c) => {
@@ -98,7 +98,7 @@ export const patchSlot: Handler = (c) => {
   }
   c.tx.update('slots', slot, (s) => Object.assign(s, next));
   const ev = c.tx.finish('edit', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) });
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) });
 };
 
 export const resizeSlot: Handler = (c) => {
@@ -118,7 +118,7 @@ export const resizeSlot: Handler = (c) => {
   assertSlotFits(c.state, shelf, rect, slot.slot_id);
   c.tx.update('slots', slot, (s) => Object.assign(s, rect));
   const ev = c.tx.finish('resize', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) });
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) });
 };
 
 export const deleteSlot: Handler = (c) => {

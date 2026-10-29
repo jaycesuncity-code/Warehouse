@@ -1,5 +1,5 @@
 import type { ApiEvent } from '../../contract';
-import { notFound, undoStale } from '../errors';
+import { notFound, undoStale, forbidden } from '../errors';
 import type { Table } from '../tx';
 import { rowKey } from '../tx';
 import { ok, type Handler } from '../types';
@@ -34,8 +34,9 @@ function lookup(c: Parameters<Handler>[0], key: string): { table: Table; row: Ro
 export const undoEvent: Handler = (c) => {
   const ev = c.state.events.find((e) => e.event_id === c.params.event_id);
   if (!ev) throw notFound('That change');
+  if ((ev.entity === 'zone' || ev.entity === 'opening') && c.role !== 'admin') throw forbidden('Only an admin can undo building edits.');
   if (ev.undone_by) throw undoStale('That change was already undone.');
-  if (ev.action === 'undo') throw undoStale("An undo can't be undone. Make the change again instead.");
+
 
   const keys = Object.keys(ev.after);
   for (const key of keys) {
@@ -57,7 +58,11 @@ export const undoEvent: Handler = (c) => {
       }
     });
   }
+  for(const stock of c.state.stock.filter(r=>r.active)) {
+    const slot=c.state.slots.find(r=>r.slot_id===stock.slot_id && r.active);
+    if(!c.state.parts.some(r=>r.part_id===stock.part_id && r.active) || !slot || !c.state.shelves.some(r=>r.shelf_id===slot.shelf_id && r.active))throw undoStale('Later inventory depends on this record. Undo the dependent changes first.');
+  }
   const undoEv = c.tx.finish('undo', ev.entity, ev.entity_id, `Undo of ${ev.action}`);
   (ev as ApiEvent).undone_by = undoEv.event_id;
-  return ok({ event_id: undoEv.event_id, undone: ev });
+  return ok({ event_id: undoEv.event_id, undone: ev, affected_shelf_ids: c.state.shelves.filter(s => s.active).map(s => s.shelf_id) });
 };

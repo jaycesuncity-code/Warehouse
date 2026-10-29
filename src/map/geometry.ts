@@ -12,7 +12,7 @@ import {
   shelfCorners,
   shelfToMap,
   widthDir,
-} from "../shared/units";
+} from "./units";
 
 export type Vec = { x: number; y: number };
 type Footprint = Pick<ShelfBase, "x_in" | "y_in" | "rotation_deg" | "width_in" | "depth_in">;

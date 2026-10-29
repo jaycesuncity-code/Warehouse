@@ -36,3 +36,5 @@ export function ConflictDialog({ open, message, canOverwrite, onReload, onOverwr
     </Modal>
   );
 }
+
+export { errorText } from './MapConflicts';

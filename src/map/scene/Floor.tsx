@@ -6,7 +6,7 @@ import { useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Opening, Point, Zone } from "../../shared/contract";
-import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN, round16 } from "../../shared/units";
+import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN, round16 } from "../units";
 import { addShelfAt, patchOpening, patchZone, select } from "../actions";
 import { editing, getMap, isAdmin, setMap, useMap } from "../store";
 import { floorPointAt } from "./common";

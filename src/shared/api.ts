@@ -5,6 +5,7 @@
  */
 import { API_BASE, MODE } from './config';
 import type {
+  LocationPatch,
   AdjustStockRequest,
   AdjustStockResponse,
   ApiErrorBody,
@@ -70,6 +71,8 @@ export class ApiError extends Error {
     this.payload = payload as ApiErrorBody;
   }
 
+  get code() { return this.error; }
+  get body() { return this.payload; }
   is(code: ErrorCode): boolean {
     return this.error === code;
   }
@@ -87,7 +90,7 @@ export class ApiError extends Error {
   }
 }
 
-export const isApiError = (e: unknown): e is ApiError => e instanceof ApiError;
+export const isApiError = (e: unknown, code?: ApiError["error"]): e is ApiError => e instanceof ApiError && (code === undefined || e.error === code);
 
 // ---------------------------------------------------------------------------------------------
 // Live transport (Cloudflare Pages Functions)
@@ -161,7 +164,7 @@ export function createApi(transport: Transport, base: string = API_BASE) {
     me: () => call<Me>('GET', '/me'),
 
     // layout (ETag aware)
-    async getLayout(ifNoneMatch?: string): Promise<LayoutResult> {
+    async getLayout(ifNoneMatch?: string | null): Promise<LayoutResult> {
       const res = await transport.request('GET', `${base}/layout`, {
         headers: ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : undefined,
       });
@@ -185,6 +188,7 @@ export function createApi(transport: Transport, base: string = API_BASE) {
       call<PartMutationResponse>('PATCH', `/parts/${enc(partId)}`, b),
     registerParts: (b: RegisterPartsRequest) => call<RegisterPartsResponse>('POST', '/parts/register', b),
 
+    patchLocation: (b: LocationPatch) => call<LocationMutationResponse>('PATCH', '/locations', b),
     // stock + locations
     adjustStock: (b: AdjustStockRequest) => call<AdjustStockResponse>('POST', '/stock/adjust', b),
     moveLocation: (b: MoveLocationRequest) => call<LocationMutationResponse>('POST', '/locations/move', b),

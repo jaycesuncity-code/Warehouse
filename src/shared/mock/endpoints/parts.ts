@@ -43,6 +43,7 @@ export const searchParts: Handler = (c) => {
 
   const scored = c.state.parts
     .filter((p) => p.active && (!category || norm(p.category ?? '') === category))
+    .filter(p => c.query.get("unassigned") !== "true" || !c.state.stock.some(l => l.active && l.part_id === p.part_id))
     .map((p) => ({ p, s: tokens.length ? score(p, q, tokens) : 0 }))
     .filter((x) => x.s >= 0)
     .sort((a, b) => b.s - a.s || a.p.part_name.localeCompare(b.p.part_name));
@@ -129,7 +130,7 @@ export const patchPart: Handler = (c) => {
 
 export const registerParts: Handler = (c) => {
   const rows: Partial<PartInput>[] = Array.isArray(c.body?.rows) ? c.body.rows : [];
-  if (!rows.length) throw validation({ rows: 'Send at least one row.' });
+  if (!rows.length || rows.length > 500) throw validation({ rows: 'Send at least one row.' });
   const results: {
     index: number;
     status: 'reused' | 'new' | 'conflict';
@@ -138,15 +139,22 @@ export const registerParts: Handler = (c) => {
   }[] = [];
   let lastId = '';
   rows.forEach((row, index) => {
-    const code = String(row.part_code ?? '').trim();
-    const name = String(row.part_name ?? '').trim();
-    if (!code || !name) {
+    const code = typeof row?.part_code === 'string' ? row.part_code.trim() : '';
+    const name = typeof row?.part_name === 'string' ? row.part_name.trim() : '';
+    if (!code || !name || code.length>150 || name.length>500) {
       results.push({ index, status: 'conflict', part_id: null, message: 'A part needs a code and a name.' });
       return;
     }
-    const existing = c.state.parts.find((p) => p.active && p.part_code.toLowerCase() === code.toLowerCase());
+    const supplied=(row as Partial<PartInput> & {part_id?:unknown}).part_id;
+    if(supplied !== undefined) {
+      const found=c.state.parts.find(p=>p.part_id===supplied && p.active);
+      if(!found || found.part_code.toLowerCase()!==code.toLowerCase() || found.part_name.trim().toLowerCase()!==name.toLowerCase()) {
+        results.push({index,status:'conflict',part_id:null,message:'Imported ID does not match the catalog.'});return;
+      }
+    }
+    const existing = c.state.parts.find((p) => p.part_code.toLowerCase() === code.toLowerCase());
     if (existing) {
-      if (existing.part_name.trim().toLowerCase() === name.toLowerCase()) {
+      if (existing.active && existing.part_name.trim().toLowerCase() === name.toLowerCase()) {
         results.push({ index, status: 'reused', part_id: existing.part_id });
       } else {
         results.push({

@@ -4,7 +4,7 @@
 import type { ThreeEvent } from "@react-three/fiber";
 import { useThree } from "@react-three/fiber";
 import { useCallback } from "react";
-import { placementFromCenter, shelfCenter } from "../../shared/units";
+import { placementFromCenter, shelfCenter } from "../units";
 import { assignPart, moveShelfTo, select, snapShelf } from "../actions";
 import { editing, getMap, setMap, shelfById } from "../store";
 import { floorPointAt } from "./common";

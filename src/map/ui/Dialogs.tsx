@@ -1,5 +1,6 @@
+import { useToast } from "../../shared/ui/Toast";
 import { useEffect } from "react";
-import { ConfirmDialog, Dialog, SlotOccupiedDialog, useToast, VersionConflictDialog } from "../../shared/ui";
+import { ConfirmDialog, Dialog, SlotOccupiedDialog, VersionConflictDialog } from "../../shared/ui";
 import { closeDialog, discardFailed, retryAllFailed, select } from "../actions";
 import { isAdmin, setMap, useMap } from "../store";
 
@@ -152,7 +153,7 @@ export function ToastBridge() {
   const t = useMap((s) => s.toast);
   const { show } = useToast();
   useEffect(() => {
-    if (t) show(t.text, { kind: t.kind, undo: t.undo });
+    if (t) show(t.text, {kind:t.kind, undo:t.undo});
   }, [t, show]);
   return null;
 }

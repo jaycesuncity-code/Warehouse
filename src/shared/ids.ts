@@ -40,3 +40,5 @@ export function idKind(value: string): IdPrefix | null {
   for (const p of ID_PREFIXES) if (ID_PATTERNS[p].test(value)) return p;
   return null;
 }
+
+export const tempId = () => 'tmp-' + crypto.randomUUID();

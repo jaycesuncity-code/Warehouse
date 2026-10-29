@@ -7,7 +7,7 @@ export interface SearchItemLike {
   part_id: string;
   part_name: string;
   part_code: string;
-  category?: string;
+  category?: string | null;
   locations: { slot_id: string; shelf_id: string; location_code: string }[];
 }
 

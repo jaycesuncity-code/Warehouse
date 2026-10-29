@@ -12,3 +12,9 @@ export { useAsync } from './useAsync';
 export { clamp, money, plural, whenText } from './format';
 export { BRAND, DEPT_STYLES, deptStyle } from './theme';
 export { mountApp } from './mount';
+
+export { Header } from './Header';
+export { DemoControls } from './MapDemoControls';
+export { Dialog, ConfirmDialog } from './Dialog';
+export { SlotOccupiedDialog, VersionConflictDialog } from './MapConflicts';
+export { departmentColor } from './brand';

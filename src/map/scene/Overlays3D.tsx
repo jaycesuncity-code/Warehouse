@@ -5,7 +5,7 @@ import { Line } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN, frontDir, shelfCenter, shelfToMap } from "../../shared/units";
+import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN, frontDir, shelfCenter, shelfToMap } from "../units";
 import { GLOW } from "../colors";
 import { aisleWidth, shelfWarnings, type WarningConfig } from "../geometry";
 import type { Layout, LayoutShelf } from "../../shared/contract";

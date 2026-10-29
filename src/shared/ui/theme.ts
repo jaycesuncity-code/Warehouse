@@ -1,5 +1,5 @@
 /** Sun City brand + department colors. Chips always carry a text label, never color alone. */
-export const BRAND = { maroon: '#6B1A2C', gold: '#C9A84C', ink: '#262626' } as const;
+export const BRAND = { maroon: '#892634', gold: '#C9A84C', ink: '#262626' } as const;
 
 export interface DeptStyle {
   bg: string;

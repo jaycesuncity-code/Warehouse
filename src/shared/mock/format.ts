@@ -111,7 +111,7 @@ export function slotParts(s: MockState, slotId: string): SlotPart[] {
 
 export function buildSlot(s: MockState, slot: SlotRec): Slot {
   const { active: _a, shelf_id: _s, ...geo } = slot;
-  return { ...geo, location_code: slotCode(s, slot), parts: slotParts(s, slot.slot_id) };
+  return { ...geo, low: slotLow(s, slot.slot_id), location_code: slotCode(s, slot), parts: slotParts(s, slot.slot_id) };
 }
 
 export function buildShelf(s: MockState, shelf: ShelfRec): Shelf {
@@ -166,6 +166,7 @@ export function buildLayout(s: MockState): Layout {
           par_total: stock.reduce((n, r) => n + r.par_qty, 0),
           low: slotLow(s, slot.slot_id),
           part_ids: stock.map((r) => r.part_id),
+          departments: [...new Set(stock.map(r => findPart(s, r.part_id)?.department).filter((d): d is string => !!d))],
         };
       });
       return {

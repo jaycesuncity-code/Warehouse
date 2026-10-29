@@ -27,7 +27,7 @@ export function slotSummary(slot: Slot & Extra, prev?: LayoutSlot, dept?: DeptLo
     part_count: parts.length,
     on_hand_total,
     par_total,
-    low: parts.length > 0 && on_hand_total < par_total,
+    low: slot.low ?? (parts.length > 0 && on_hand_total < par_total),
     part_ids,
     departments: [...departments],
   };

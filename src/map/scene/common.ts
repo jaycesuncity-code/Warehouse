@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import type { ShelfBase } from "../../shared/contract";
-import { shelfToMap } from "../../shared/units";
+import { shelfToMap } from "../units";
 
 export const DEG = Math.PI / 180;
 export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);

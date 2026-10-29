@@ -8,12 +8,13 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? {executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']} : undefined,
     baseURL: 'http://localhost:4173',
     viewport: { width: 390, height: 844 },
     trace: 'off',
   },
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    command: 'VITE_DATA_MODE=mock npm run build && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: true,
     timeout: 180_000,

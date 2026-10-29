@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Layout, Shelf } from "../shared/contract";
-import { handleSync, resetDemoData } from "../shared/mock";
+import { handleMockRequest, resetDemoData } from "../shared/mock";
 import { learnDepartments, removeShelf, removeSlot, slotSummary, toLayoutShelf, upsertShelf } from "./layoutOps";
 
+const handleSync = (r: {method: "GET" | "PATCH" | "POST"; path: string; body?: unknown}) => handleMockRequest(r.method, `/api${r.path}`, {body:r.body, role:"editor"});
 const get = (path: string) => handleSync({ method: "GET", path }).body as never;
 
 beforeEach(() => resetDemoData());

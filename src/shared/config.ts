@@ -9,7 +9,7 @@
  */
 export type Mode = 'mock' | 'live';
 
-export const DEFAULT_MODE: Mode = 'mock';
+export const DEFAULT_MODE: Mode = import.meta.env.VITE_DATA_MODE === 'mock' || import.meta.env.DEV ? 'mock' : 'live';
 export const API_BASE = '/api';
 
 const SESSION_KEY = 'sc.mode';

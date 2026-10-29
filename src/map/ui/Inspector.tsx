@@ -12,7 +12,7 @@ import type {
   Zone,
 } from "../../shared/contract";
 import { FtInInput } from "../../shared/ui";
-import { cellWidth, formatFtIn, formatIn, slotRect } from "../../shared/units";
+import { cellWidth, formatFtIn, formatIn, slotRect } from "../units";
 import {
   adjustQty,
   assignPart,
@@ -290,7 +290,7 @@ function ShelfInspector({ sh }: { sh: LayoutShelf }) {
               className="field"
               value={sh.zone_id ?? ""}
               disabled={dis}
-              onChange={(e) => void save("zone", { zone_id: e.target.value || null }, "Change zone")}
+              onChange={(e) => void save("zone", { zone_id: e.target.value }, "Change zone")}
             >
               <option value="">(none)</option>
               {layout.zones.map((z) => (
@@ -808,7 +808,7 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
             <span className="field-label">Type</span>
             <select
               className="field"
-              value={slot.bin_type}
+              value={slot.bin_type ?? "loose"}
               disabled={!can}
               onChange={(e) =>
                 void run("type", patchSlot(sh.shelf_id, slot.slot_id, { bin_type: e.target.value as BinType }))
@@ -1252,7 +1252,7 @@ function OpeningInspector({ o }: { o: Opening }) {
               ))}
             </select>
           </label>
-          <TextField label="Tag" value={o.tag} disabled={!admin} status={st.tag} onCommit={(v) => set("tag", v)} />
+          <TextField label="Tag" value={o.tag ?? ""} disabled={!admin} status={st.tag} onCommit={(v) => set("tag", v)} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <FtInInput

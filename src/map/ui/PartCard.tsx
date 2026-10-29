@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, isApiError } from "../../shared/api";
 import type { Part } from "../../shared/contract";
 import { departmentColor, FtInInput } from "../../shared/ui";
-import { formatIn } from "../../shared/units";
+import { formatIn } from "../units";
 import { patchPart, select } from "../actions";
 import { fitCount } from "../geometry";
 import { editing, setMap, useMap } from "../store";

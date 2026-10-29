@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LayoutShelf } from "../../shared/contract";
-import { formatFtIn, frontDir, mapToSheet, shelfCenter, shelfToMap, slotRect } from "../../shared/units";
+import { formatFtIn, frontDir, mapToSheet, shelfCenter, shelfToMap, slotRect } from "../units";
 import { COLOR_BY_LABEL, LEGENDS, UNVERIFIED } from "../colors";
 import { aisleWidth, labelPoint } from "../geometry";
 import { PRESETS } from "../presets";

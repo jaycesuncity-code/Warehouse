@@ -2,7 +2,7 @@
 // state, 409 version_conflict -> "Changed by someone else", network failure -> listed as a failed
 // edit (never silently dropped), and an undo entry when the server recorded an event.
 
-import { api, ApiError, isApiError } from "../shared/api";
+import { api, ApiError, isApiError } from "./api";
 import type {
   ErrorCode,
   Layout,
@@ -38,7 +38,7 @@ import {
   shelfCorners,
   shelfToMap,
   slotRect,
-} from "../shared/units";
+} from "./units";
 import { snapPlacement, snapTargets, buildWalls, zoneAt, type Vec } from "./geometry";
 import {
   learnDepartments,
@@ -126,7 +126,7 @@ export async function write<T>(call: () => Promise<T>, o: WriteOpts<T>): Promise
       setMap({ dialog: { kind: "version", ...o.conflict } });
       return undefined;
     }
-    if (e instanceof ApiError && o.pass?.includes(e.code)) throw e;
+    if (e instanceof ApiError && o.pass?.some(code => code === e.code)) throw e;
     toast(errorText(e), "error");
     return undefined;
   } finally {
@@ -483,8 +483,8 @@ export async function addShelfAt(at: Vec, preset: PresetKey) {
     shelfCenter({ x_in: p.x_in, y_in: p.y_in, rotation_deg, width_in: size.width_in, depth_in: size.depth_in }),
   );
   const body: ShelfCreate = {
-    name: "",
-    zone_id: zone?.zone_id ?? null,
+    name: `Shelf ${lay.shelves.length + 1}`,
+    zone_id: zone?.zone_id ?? lay.zones[0]?.zone_id ?? "",
     kind: size.kind,
     x_in: p.x_in,
     y_in: p.y_in,
@@ -505,9 +505,10 @@ export async function createShelf(body: ShelfCreate, label = "Add shelf") {
   const tmp = tempId();
   const tmpShelf: LayoutShelf = {
     ...body,
+    kind: body.kind ?? "shelving",
     shelf_id: tmp,
     name: body.name || "New shelf",
-    zone_name: L().zones.find((z) => z.zone_id === body.zone_id)?.name ?? null,
+    zone_name: L().zones.find((z) => z.zone_id === body.zone_id)?.name ?? "",
     wall_ref: body.wall_ref ?? null,
     notes: body.notes ?? "",
     version: 0,
@@ -1024,9 +1025,9 @@ export async function runSearch(q: string, opts: { fly?: boolean } = {}) {
   }
   setMap((s) => ({ search: { ...s.search, q, status: "loading" } }));
   let items: Part[] = [];
-  let total = 0;
+  let total: number;
   try {
-    if (isPartId(query)) {
+    if (isPartId(query as unknown)) {
       try {
         items = [await api.getPart(query)];
       } catch (e) {

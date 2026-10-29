@@ -5,7 +5,7 @@ import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { LayoutShelf, LayoutSlot } from "../../shared/contract";
-import { slotRect } from "../../shared/units";
+import { slotRect } from "../units";
 import { DECK, SHELF_STEEL, slotColor, zoneColor, type ColorBy } from "../colors";
 import { useMap } from "../store";
 import { capacityFor, shelfBoxMatrix, tmpColor, UNIT_BOX } from "./common";

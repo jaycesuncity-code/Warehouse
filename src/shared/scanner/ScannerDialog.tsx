@@ -27,8 +27,8 @@ export function ScannerDialog({ open, onClose, onPartId }: { open: boolean; onCl
           handle.current = h;
           setState("live");
         }
-      } catch (e: any) {
-        setState(e?.name === "NotAllowedError" ? "denied" : "none");
+      } catch (e: unknown) {
+        setState(e instanceof Error && e.name === "NotAllowedError" ? "denied" : "none");
       }
     })();
     return () => {

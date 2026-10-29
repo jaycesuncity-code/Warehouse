@@ -1,17 +1,29 @@
+import { integratedRenderer } from './renderer';
+import { MODE } from '../shared/config';
 import { api } from '../shared/api';
 import { isPartId } from '../shared/ids';
 import type { Part } from '../shared/contract';
 import generatorSource from '../../labels/bin-label-generator.html?raw';
 
 type Staged = { k: number; id: string; idSrc: string; name: string; code: string; qty: string; ex: Record<string,string>; keepInvalid: boolean; iss: unknown[] };
-type GeneratorWindow = Window & { __BLG?: { rows: Staged[] }; __lastPdfBlob?: Blob; XLSX?: any };
+type SheetAPI = {utils:{book_new:()=>unknown;book_append_sheet:(book:unknown,sheet:unknown,name:string)=>void;aoa_to_sheet:(rows:string[][])=>unknown};write:(book:unknown,options:{bookType:string;type:string})=>ArrayBuffer};
+type GeneratorWindow = Window & { __BLG?: { rows: Staged[]; S: Record<string,unknown>; refresh:()=>void; invalidate:()=>void; renderConfirmed:(rows:Staged[])=>Promise<Blob> }; XLSX?: SheetAPI };
 const frame = document.querySelector<HTMLIFrameElement>('#generator')!;
 const list = document.querySelector<HTMLDivElement>('#selection')!;
 const status = document.querySelector<HTMLDivElement>('#status')!;
 const searchResults = document.querySelector<HTMLDivElement>('#searchResults')!;
-let selected = new Map<number,boolean>();
-let serverStatus = new Map<number,string>();
+const selected = new Map<number,boolean>();
+const serverStatus = new Map<number,string>();
 let active = false;
+let output: {rows:Staged[]; fingerprint:string} | null = null;
+const fingerprint = () => JSON.stringify({rows:chosen(),settings:child().__BLG!.S});
+function invalidateOutput() {
+ output=null;
+ for(const id of ['download','csv','xlsx']) (document.querySelector('#'+id) as HTMLButtonElement).disabled=true;
+ try {child().__BLG!.invalidate();} catch { /* frame not ready */ }
+}
+function checkOutput() { if(!output || output.fingerprint!==fingerprint()) {invalidateOutput();return false;} return true; }
+
 let matched: Part[] = [];
 const norm = (s: string) => s.trim().toLowerCase();
 const alertMessage = (message: string, error = false) => {
@@ -36,8 +48,8 @@ function renderSelection() {
   list.append(heading);
   for (const r of rows) {
     const line = document.createElement('label'); line.className = 'part-row';
-    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = selected.get(r.k) !== false;
-    chk.addEventListener('change', () => { selected.set(r.k, chk.checked); renderSelection(); });
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = selected.get(r.k) !== false; chk.disabled=active;
+    chk.addEventListener('change', () => { selected.set(r.k, chk.checked); invalidateOutput(); renderSelection(); });
     const text = document.createElement('span');
     text.textContent = (r.code || 'MISSING SKU') + ' · ' + (r.name || 'MISSING NAME') + (r.id ? ' · '+r.id : '');
     const badge = document.createElement('small'); badge.textContent = serverStatus.get(r.k) || '';
@@ -109,58 +121,34 @@ async function resolve(list: Staged[]) {
   if (failed) throw Error(failed + ' row issue(s). Successful registrations were kept; fix conflicts and retry.');
   if (list.some(r=>!isPartId(r.id))) throw Error('Unverified IDs. No PDF generated.');
 }
-/** Uses unchanged vector-PDF renderer and all its physical print settings. */
+/** Render an immutable selected snapshot; the editor array is never replaced. */
 async function printSelected(selection: Staged[]) {
-  const w = child(), arr = parts();
-  const original = arr.slice();
-  const button = w.document.querySelector<HTMLButtonElement>('#btnGen')!;
-  const old = w.__lastPdfBlob;
-  arr.splice(0,arr.length,...selection);
-  // Source generator must have all canonical IDs; it cannot mint any new one here.
-  if (arr.some(r=>!isPartId(r.id))) { arr.splice(0,arr.length,...original); throw Error('Unsafe QR payload prevented'); }
-  let completed = false;
-  try {
-    button.click();
-    const blob = await new Promise<Blob>((resolve,reject)=>{
-      const started = Date.now();
-      const timer = setInterval(()=>{
-        if (w.__lastPdfBlob && w.__lastPdfBlob !== old) { clearInterval(timer); resolve(w.__lastPdfBlob); }
-        else if (w.document.querySelector('#progTxt')?.textContent === 'Failed.' || Date.now()-started > 120000) {
-          clearInterval(timer); reject(Error('PDF generation failed or timed out'));
-        }
-      },150);
-    });
-    completed = true;
-    alertMessage(selection.length + ' confirmed label(s) generated. Print at 100% / Actual size. No stock adjusted.');
-    return blob;
-  } finally {
-    arr.splice(0,arr.length,...original);
-    // Refresh the original editor without changing its saved label dimensions.
-    const settings = w.document.querySelector<HTMLSelectElement>('#s_rows');
-    settings?.dispatchEvent(new Event('change',{bubbles:true}));
-    renderSelection();
-    if (!completed) alertMessage('PDF was not generated. The staged list is intact.',true);
-  }
+ return child().__BLG!.renderConfirmed(structuredClone(selection));
 }
 async function generate() {
   if (active) return;
   const selection = chosen();
   if (!selection.length) { alertMessage('Select parts first.',true); return; }
-  active = true; frame.style.pointerEvents='none'; renderSelection();
+  invalidateOutput(); active = true; frame.inert=true; document.querySelectorAll<HTMLButtonElement>('main button').forEach(b=>b.disabled=true); renderSelection();
   try {
     alertMessage('Resolving selected parts against warehouse database...');
     await resolve(selection);
     renderSelection();
-    const pdf = await printSelected(selection);
-    (document.querySelector('#download') as HTMLButtonElement).onclick = () => saveBlob(pdf,'sun-city-bin-labels.pdf');
+    const snapshot=structuredClone(selection);
+    const expected=fingerprint();
+    const pdf = await printSelected(snapshot);
+    if(expected!==fingerprint())throw Error('The list changed during generation. Generate again.');
+    output={rows:snapshot,fingerprint:expected};
+    (document.querySelector('#download') as HTMLButtonElement).onclick = () => {if(checkOutput())saveBlob(pdf,'sun-city-bin-labels.pdf');};
     (document.querySelector('#download') as HTMLButtonElement).disabled=false;
     (document.querySelector('#csv') as HTMLButtonElement).disabled=false;
     (document.querySelector('#xlsx') as HTMLButtonElement).disabled=false;
   } catch(e) { alertMessage(e instanceof Error ? e.message : 'Could not generate labels.',true); renderSelection(); }
-  finally { active=false; frame.style.pointerEvents='auto'; renderSelection(); }
+  finally { active=false; frame.inert=false; document.querySelectorAll<HTMLButtonElement>('.match').forEach(b=>b.disabled=false); for(const id of ['find','all','none','refresh']) (document.querySelector('#'+id) as HTMLButtonElement).disabled=false; child().__BLG!.refresh(); renderSelection(); }
 }
 function exportRows(xlsx: boolean) {
-  const selectedRows=chosen().filter(r=>isPartId(r.id));
+  if(!checkOutput())return;
+  const selectedRows=output!.rows;
   if (!selectedRows.length) return;
   const cols=Array.from(new Set(selectedRows.flatMap(r=>Object.keys(r.ex||{}))));
   const matrix=[['part_id','part_name','part_code','expected_qty',...cols],...selectedRows.map(r=>[r.id,r.name,r.code,r.qty,...cols.map(c=>r.ex[c]||'')])];
@@ -193,7 +181,7 @@ document.querySelector('#find')!.addEventListener('click',async()=>{
         const arr=parts();
         const key=-Math.floor(performance.now()*100000+Math.random()*10000);
         arr.push({k:key,id:p.part_id,idSrc:'reused',name:p.part_name,code:p.part_code,qty:'',ex:{},keepInvalid:false,iss:[]});
-        selected.set(key,true);serverStatus.set(key,'Existing part added');renderSelection();
+        invalidateOutput();selected.set(key,true);serverStatus.set(key,'Existing part added');child().__BLG!.refresh();renderSelection();
       });
       searchResults.append(btn);
     }
@@ -204,9 +192,7 @@ frame.onload=()=>{
   try {
     const w=child(), doc=w.document;
     // Never offer stale exports after edits, additions, or selection changes.
-    const invalidate = () => {
-      for (const id of ['download','csv','xlsx']) (document.querySelector('#'+id) as HTMLButtonElement).disabled = true;
-    };
+    const invalidate = () => {if(!active) invalidateOutput();};
     doc.addEventListener('input', invalidate, true);
     doc.addEventListener('change', invalidate, true);
     doc.addEventListener('click', event => {
@@ -215,11 +201,13 @@ frame.onload=()=>{
     }, true);
     for (const id of ['all','none','refresh']) document.querySelector('#'+id)!.addEventListener('click',invalidate);
     const style=doc.createElement('style');
-    style.textContent='#btnGen,#btnDlCsv,#btnDlXlsx,#bulkInvalid,button[data-act=newid],button[data-act=keep],button[data-act=replace],#exportWhy,#stale{display:none!important}';
+    style.textContent='#bulkInvalid,button[data-act=newid],button[data-act=keep],#exportWhy,#stale{display:none!important}';
     doc.head.append(style);
     const grid=doc.querySelector('#grid');
     if (grid) new MutationObserver(()=>renderSelection()).observe(grid,{childList:true,subtree:true});
     renderSelection(); alertMessage('Add parts in the editor below, then select and resolve them here.');
   } catch(e){ alertMessage('Generator failed to load: '+String(e),true); }
 };
-frame.srcdoc=generatorSource;
+window.addEventListener('warehouse-generate',()=>void generate());
+const mode=document.createElement('p'); mode.textContent=MODE==='mock'?'DEMO DATA — changes stay in this browser':'Warehouse database'; document.querySelector('header')!.append(mode);
+frame.srcdoc=integratedRenderer(generatorSource);

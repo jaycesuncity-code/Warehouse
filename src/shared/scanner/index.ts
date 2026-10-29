@@ -12,7 +12,7 @@ export function decodeImageData(data: Uint8ClampedArray, width: number, height: 
 type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> };
 
 function nativeDetector(): Detector | null {
-  const BD = (globalThis as any).BarcodeDetector;
+  const BD = (globalThis as typeof globalThis & {BarcodeDetector?: new(options:{formats:string[]})=>Detector}).BarcodeDetector;
   if (!BD) return null;
   try {
     return new BD({ formats: ["qr_code"] }) as Detector;
@@ -79,7 +79,7 @@ export async function startCameraScanner(video: HTMLVideoElement, onCode: (text:
     },
     torch: async (on: boolean) => {
       try {
-        await track.applyConstraints({ advanced: [{ torch: on } as any] });
+        await track.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet & {torch:boolean}] });
         return true;
       } catch {
         return false;

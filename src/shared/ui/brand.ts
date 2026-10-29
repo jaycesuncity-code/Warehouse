@@ -1,5 +1,5 @@
 // Sun City brand + department colors (project brand system).
-export const MAROON = "#6B1A2C";
+export const MAROON = "#892634";
 export const GOLD = "#C9A84C";
 
 export const DEPARTMENT_COLORS: Record<string, { main: string; light: string }> = {

@@ -4,8 +4,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LayoutShelf, LayoutSlot, Row } from "../../shared/contract";
-import { overlappingSlots, slotBoundsProblem } from "../../shared/mock/rules";
-import { cellWidth, formatFtIn, formatIn, recalcClearHeights, round16, slotRect } from "../../shared/units";
+import { overlappingSlots, slotBoundsProblem } from "../gridRules";
+import { cellWidth, formatFtIn, formatIn, recalcClearHeights, round16, slotRect } from "../units";
 import { assignPart, createSlot, fillRow, renumberShelf, resizeSlot, select, setCols, setRows } from "../actions";
 import { fillState } from "../colors";
 import { editing, effectiveShelf, selectedShelfId, setMap, toast, useMap } from "../store";

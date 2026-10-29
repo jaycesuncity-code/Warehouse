@@ -2,7 +2,7 @@
 // bench, floor area). All sizes are editable after placing.
 
 import type { Row, ShelfKind } from "../shared/contract";
-import { evenRows } from "../shared/units";
+import { evenRows } from "./units";
 
 export interface ShelfSize {
   kind: ShelfKind;

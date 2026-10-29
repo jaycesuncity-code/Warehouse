@@ -6,7 +6,7 @@ import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Opening, Zone } from "../../shared/contract";
-import { DEFAULT_WALL_HEIGHT_IN, FOOTPRINT_Y_IN } from "../../shared/units";
+import { DEFAULT_WALL_HEIGHT_IN, FOOTPRINT_Y_IN } from "../units";
 import { select } from "../actions";
 import { UNVERIFIED, zoneColor } from "../colors";
 import { buildWalls } from "../geometry";

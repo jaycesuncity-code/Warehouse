@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../shared/api";
 import type { LayoutShelf, Part } from "../../shared/contract";
-import { formatFtIn } from "../../shared/units";
+import { formatFtIn } from "../units";
 import { assignPart, select } from "../actions";
 import { fillState } from "../colors";
 import { canEdit, editing, selectedShelfId, setMap, useMap } from "../store";
