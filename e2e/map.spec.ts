@@ -2,45 +2,32 @@
 // Every test blocks non-local network requests and fails on console errors.
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
+import type { SceneShelf } from "../src/map/scene/Debug";
+
+test.use({ viewport: { width: 1280, height: 800 } });
 
 const SHOTS = "artifacts/screens";
 mkdirSync(SHOTS, { recursive: true });
 
 type Role = "viewer" | "editor" | "admin";
-type DB = {
-  shelves: {
-    shelf_id: string;
-    name: string;
-    x_in: number;
-    y_in: number;
-    rotation_deg: number;
-    cols: number;
-    rows: unknown[];
-    version: number;
-    active: boolean;
-    wall_ref: string | null;
-  }[];
-  slots: {
-    slot_id: string;
-    shelf_id: string;
-    row_index: number;
-    col_start: number;
-    width_span: number;
-    height_span: number;
-    bin_width_in: number | null;
-    active: boolean;
-    slot_no: number;
-  }[];
-  parts: { part_id: string; part_name: string; active: boolean }[];
-  locations: { part_id: string; slot_id: string; on_hand_qty: number; par_qty: number; active: boolean }[];
-  zones: { zone_id: string; polygon_in: [number, number][] }[];
-};
+type DB = ReturnType<typeof import('../src/shared/mock').getDB>;
 
 declare global {
   interface Window {
-    __mapDebug: any;
-    __mock: any;
+    __mapDebug: {
+      zones(): Record<string, {minX:number;maxX:number;minZ:number;maxZ:number;width:number;depth:number}>;
+      footprint(): {minX:number;maxX:number;minZ:number;maxZ:number;width:number;depth:number};
+      shelves(): SceneShelf[];
+      westOfZero(): string[];
+      project(x:number,y:number,h?:number): {x:number;y:number};
+      searchDots(): number;
+      camera(): {type:string;position:number[];zoom:number;target:number[];view:string};
+      info(): {calls:number;triangles:number;geometries:number};
+      measureFrames(ms?:number): Promise<{frames:number;avg:number;p95:number;max:number}>;
+    };
+    __mock: typeof import("../src/shared/mock");
     __mapTimings?: Record<string, number>;
+    __releaseShelfCreate?: () => void;
   }
 }
 
@@ -223,20 +210,20 @@ test.describe("search-first map", () => {
     await page.waitForTimeout(900);
     expect(await page.evaluate(() => window.__mapDebug.searchDots())).toBeGreaterThan(2);
     await shot(page, "search-dots-1280");
-    await search.fill("furnace");
+    await search.fill("filter");
     await expect.poll(level).toBe("shelf");
     await expect(page.getByTestId("front-view")).toBeVisible();
-    await expect(page.getByTestId("inspector-title")).toHaveText("Shelf B1");
+    await expect(page.getByTestId("inspector-title")).toHaveText("Shelf F1");
     expect(await page.evaluate(() => window.__mapDebug.searchDots())).toBe(1);
     await page.waitForTimeout(900);
     await shot(page, "search-zoom-shelf-1280");
-    await search.fill("furnace sens");
+    await search.fill("filter 20x20");
     await expect.poll(level).toBe("slot");
     await expect(page.getByTestId("slot-inspector")).toBeVisible();
-    await expect(page.getByTestId("part-card-name")).toHaveText("Universal Flame Sensor");
+    await expect(page.getByTestId("part-card-name")).toHaveText("Air Filter 20x20x1 MERV 8");
     await page.waitForTimeout(900);
     await shot(page, "search-zoom-slot-1280");
-    await search.fill("furnace sensx");
+    await search.fill("filter 20x20-no-match");
     await expect.poll(level).toBe("none");
     await expect(page.getByTestId("search-status")).toHaveText(/No results/);
     await search.fill("");
@@ -248,9 +235,9 @@ test.describe("search-first map", () => {
     await open(page);
     await page.getByTestId("map-search").blur();
     await page.locator("header").click();
-    await page.keyboard.type("prt-h9ms4bqy", { delay: 5 });
+    await page.keyboard.type("prt-wt82v4gp", { delay: 5 });
     await page.keyboard.press("Enter");
-    await expect(page.getByTestId("part-card-name")).toHaveText(/PTFE Thread Seal Tape/);
+    await expect(page.getByTestId("part-card-name")).toHaveText(/6" Duct Start Collar/);
     await expect(page.getByTestId("inspector-title")).toHaveText("A1-2-1");
   });
 
@@ -261,7 +248,7 @@ test.describe("search-first map", () => {
     await expect(page.getByTestId("sheet-results")).toBeVisible();
     await page.waitForTimeout(900);
     await shot(page, "search-dots-390");
-    await page.getByTestId("map-search").fill("furnace");
+    await page.getByTestId("map-search").fill("filter");
     await expect(page.getByTestId("sheet-front")).toBeVisible();
     await page.waitForTimeout(900);
     await shot(page, "search-zoom-shelf-390");
@@ -332,19 +319,22 @@ async function selectOrSearch(page: Page, w: number, name: string) {
 }
 
 test.describe("deep links", () => {
-  test("from the scan app: /map/?part=", async ({ page }) => {
+  test("scanner to map and back preserves the canonical part", async ({ page }) => {
     await page.addInitScript(() => localStorage.clear());
-    await page.goto("/warehouse/?part=prt-p9vx3tka");
-    await page.getByTestId("open-in-map").click();
+    await page.goto("/warehouse/?latency=0#/part/prt-yegeqahj/where");
+    await page.getByTestId("open-3d").click();
     await page.waitForFunction(() => window.__mapDebug && window.__mapDebug.shelves().length > 0);
-    await expect(page.getByTestId("part-card-name")).toHaveText("Universal Flame Sensor");
+    await expect(page.getByTestId("part-card-name")).toHaveText("Air Filter 20x20x1 MERV 8");
     await expect(page.getByTestId("slot-inspector")).toBeVisible();
-    await expect(page.getByTestId("inspector-title")).toHaveText(/^B1-/);
+    await expect(page.getByTestId("inspector-title")).toHaveText(/^F1-/);
     await expect(page.getByTestId("front-view")).toBeVisible();
+    await page.getByRole("link", { name: "Open in the scan app" }).click();
+    await expect(page).toHaveURL(/\/warehouse\/#\/part\/prt-yegeqahj$/);
+    await expect(page.getByTestId("part-name")).toHaveText("Air Filter 20x20x1 MERV 8");
   });
   test("/map/?shelf=&slot=", async ({ page }) => {
-    await open(page, "/map/?shelf=shf-3pjgaukn&slot=slt-6sacxsng");
-    await expect(page.getByTestId("inspector-title")).toHaveText("A1-G-2");
+    await open(page, "/map/?slot=slt-natbbe7k");
+    await expect(page.getByTestId("inspector-title")).toHaveText("A2-G-1");
     await expect(page.getByTestId("slot-part")).toHaveCount(2); // a slot holding two parts
   });
 });
@@ -353,7 +343,7 @@ test.describe("roles", () => {
   test("viewer: search, view, walk, read-only front view", async ({ page }) => {
     await open(page, "/map/", "viewer");
     await expect(page.getByTestId("mode-edit")).toBeDisabled();
-    await page.getByTestId("map-search").fill("furnace");
+    await page.getByTestId("map-search").fill("filter");
     await expect(page.getByTestId("front-view")).toBeVisible();
     await expect(page.getByTestId("front-tools")).toHaveCount(0);
     await expect(page.getByTestId("shelf-name")).toBeDisabled();
@@ -369,16 +359,35 @@ test.describe("editing flows (mock mode)", () => {
   test("add, place from wall, rotate, undo/redo, duplicate, delete, rows/cols, slots, bins, parts, conflicts", async ({
     page,
   }) => {
+    test.setTimeout(180_000);
     await open(page, "/map/?latency=250");
     await page.getByTestId("mode-edit").click();
 
+    // Hold the create response so the optimistic state is observed deterministically,
+    // even when a slow render takes longer than the normal simulated API latency.
+    await page.evaluate(() => {
+      const request = window.__mock.mockTransport.request.bind(window.__mock.mockTransport);
+      const gate = new Promise<void>((resolve) => { window.__releaseShelfCreate = resolve; });
+      window.__mock.mockTransport.request = async (...args) => {
+        if (args[0] === "POST" && args[1].split("?")[0] === "/api/shelves") {
+          await gate;
+          window.__mock.mockTransport.request = request;
+        }
+        return request(...args);
+      };
+    });
     // --- add a shelf by clicking the floor (tmp- id until the server answers)
     await page.getByTestId("add-shelf").click();
     await expect(page.getByTestId("tool-hint")).toBeVisible();
     const p = await page.evaluate(() => window.__mapDebug.project(240, 300, 0));
     await page.mouse.click(p.x, p.y);
     await expect(page.getByTestId("inspector-id")).toHaveText(/tmp-/);
+    expect((await db(page)).shelves.some((shelf) => shelf.shelf_id.startsWith("tmp-"))).toBe(false);
+    await page.evaluate(() => window.__releaseShelfCreate?.());
     await expect(page.getByTestId("inspector-id")).toHaveText(/^shf-[2-9a-hj-km-np-z]{8}/);
+    await page.getByTestId("shelf-name").fill("S1");
+    await page.getByTestId("shelf-name").press("Enter");
+    await expect.poll(async () => !!(await shelfByName(page, "S1"))).toBe(true);
     const s1 = await shelfByName(page, "S1");
     expect(s1).toBeTruthy();
 
@@ -482,20 +491,20 @@ test.describe("editing flows (mock mode)", () => {
 
     // --- assign a part by drag (unassigned list -> slot)
     await page.getByTestId("left-tab-parts").click();
-    const filter = page.getByTestId("unassigned-list").getByTestId("part-row").filter({ hasText: "20x20x1" });
+    const filter = page.getByTestId("unassigned-list").getByTestId("part-row").filter({ hasText: "Condensate Float Switch" });
     await filter.dragTo(page.getByTestId("fv-slot-S1-G-1"));
     await expect
       .poll(async () =>
-        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-c7tn2vrd" && l.slot_id === g1.slot_id),
+        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-rudx5et8" && l.slot_id === g1.slot_id),
       )
       .toBe(true);
 
     // --- occupied slot -> share
-    await page.getByTestId("parts-search").fill("flapper");
+    await page.getByTestId("parts-search").fill("wax");
     await page
       .getByTestId("parts-panel")
       .getByTestId("part-row")
-      .filter({ hasText: "Flapper" })
+      .filter({ hasText: "Wax Ring" })
       .first()
       .dragTo(page.getByTestId("fv-slot-S1-G-1"));
     await expect(page.getByTestId("occupied-dialog")).toBeVisible();
@@ -506,38 +515,38 @@ test.describe("editing flows (mock mode)", () => {
 
     // --- swap: tape into G-2, then move the filter from G-1 onto G-2 -> Swap places
     const g2 = (await slotsOf(page, s1.shelf_id)).find((x) => x.row_index === 0 && x.col_start === 5)!;
-    await page.getByTestId("parts-search").fill("PTFE");
+    await page.getByTestId("parts-search").fill("collar");
     await page
       .getByTestId("parts-panel")
       .getByTestId("part-row")
-      .filter({ hasText: "PTFE" })
+      .filter({ hasText: "Start Collar" })
       .first()
       .dragTo(page.getByTestId("fv-slot-S1-G-2"));
     await expect
       .poll(async () =>
-        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-h9ms4bqy" && l.slot_id === g2.slot_id),
+        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-wt82v4gp" && l.slot_id === g2.slot_id),
       )
       .toBe(true);
     await page.getByTestId("fv-slot-S1-G-1").click();
-    await page.getByTestId("slot-part").filter({ hasText: "20x20x1" }).getByTestId("move-part").click();
+    await page.getByTestId("slot-part").filter({ hasText: "Condensate Float Switch" }).getByTestId("move-part").click();
     await page.getByTestId("fv-slot-S1-G-2").click();
     await expect(page.getByTestId("occupied-dialog")).toBeVisible();
     await page.getByRole("button", { name: "Swap places" }).click();
     await expect
       .poll(async () =>
-        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-c7tn2vrd" && l.slot_id === g2.slot_id),
+        (await db(page)).locations.some((l) => l.active && l.part_id === "prt-rudx5et8" && l.slot_id === g2.slot_id),
       )
       .toBe(true);
     const locs = (await db(page)).locations.filter((l) => l.active);
-    expect(locs.some((l) => l.part_id === "prt-h9ms4bqy" && l.slot_id === g1.slot_id)).toBe(true);
-    expect(locs.some((l) => l.part_id === "prt-c7tn2vrd" && l.slot_id === g1.slot_id)).toBe(false);
+    expect(locs.some((l) => l.part_id === "prt-wt82v4gp" && l.slot_id === g1.slot_id)).toBe(true);
+    expect(locs.some((l) => l.part_id === "prt-rudx5et8" && l.slot_id === g1.slot_id)).toBe(false);
 
     // --- version conflict: someone else changes S1, then we rename it
     await selectShelfInTree(page, "WAREHOUSE 126", "S1");
     await page.evaluate(() => {
       const sh = window.__mock
         .getDB()
-        .shelves.find((x: { name: string; active: boolean }) => x.name === "S1" && x.active);
+        .shelves.find((x) => x.name === "S1" && x.active)!;
       sh.version += 1;
       sh.notes = "changed elsewhere";
     });
@@ -561,7 +570,7 @@ test.describe("editing flows (mock mode)", () => {
     await page.getByTestId("mode-edit").click();
     await selectShelfInTree(page, "WAREHOUSE 126", "A2");
     await page.evaluate(() => {
-      window.__mock.getDB().shelves.find((x: { name: string }) => x.name === "A2").version += 1;
+      window.__mock.getDB().shelves.find((x) => x.name === "A2")!.version += 1;
     });
     await page.getByTestId("shelf-name").fill("A2-admin");
     await page.getByTestId("shelf-name").press("Enter");
@@ -577,7 +586,7 @@ test.describe("editing flows (mock mode)", () => {
       .poll(
         async () =>
           await page.evaluate(
-            () => window.__mock.getDB().zones.find((z: { name: string }) => z.name === "STORAGE 125").verified,
+            () => window.__mock.getDB().zones.find((z) => z.name === "STORAGE 125")!.verified,
           ),
       )
       .toBe(true);
@@ -609,13 +618,45 @@ test.describe("editing flows (mock mode)", () => {
     await page.getByTestId("tree-shelf-A2").click();
     await page.getByTestId("mobile-tab-inspector").click();
     await page.evaluate(() => {
-      window.__mock.getDB().shelves.find((x: { name: string }) => x.name === "A2").version += 1;
+      window.__mock.getDB().shelves.find((x) => x.name === "A2")!.version += 1;
     });
     await page.getByTestId("shelf-name").fill("A2b");
     await page.getByTestId("shelf-name").press("Enter");
     await expect(page.getByTestId("version-dialog")).toBeVisible();
     await shot(page, "conflict-version-390");
   });
+});
+
+
+test('packout shelf type connects issued kits to map, scanner, and employee inventory', async ({ page }) => {
+  await open(page, '/map/?latency=0', 'admin');
+  await page.getByTestId('mode-edit').click();
+  await selectShelfInTree(page, 'WAREHOUSE 126', 'A1');
+  await page.getByTestId('shelf-location-type').selectOption('packout');
+  await expect.poll(async () => (await shelfByName(page, 'A1')).location_type).toBe('packout');
+  const fixture = await page.evaluate(() => {
+    const mock = window.__mock;
+    const post = (path: string, body: object) => {
+      const result = mock.handleMockRequest('POST', `/api${path}`, { body, role: 'admin' });
+      if (result.status >= 400) throw new Error(JSON.stringify(result.body));
+      return result.body;
+    };
+    const employee = post('/employees', { name: 'Map tester', email: 'demo.admin@suncity.example' }) as { employee: { employee_id: string } };
+    const kit = post('/packouts', { name: 'Map test kit', slot_id: 'slt-5jxbn9zp' }) as { kit: { kit_id: string; version: number } };
+    post(`/packouts/${kit.kit.kit_id}/issue`, { employee_id: employee.employee.employee_id, version: kit.kit.version });
+    return { shelf_id: mock.getDB().shelves.find((shelf) => shelf.name === 'A1')!.shelf_id };
+  });
+  await page.goto(`/map/?latency=0&shelf=${fixture.shelf_id}&slot=slt-5jxbn9zp&part=prt-26cr7rtx`);
+  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('slot-inspector')).toContainText('This kit is issued to an employee');
+  await expect(page.getByTestId('slot-inspector').getByRole('button', { name: 'One more', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('add-part-submit')).toHaveCount(0);
+  await expect(page.getByTestId('part-card')).toContainText('in issued kits');
+  await page.goto('/warehouse/?latency=0#/part/prt-26cr7rtx');
+  await expect(page.getByTestId('issued-kit-note')).toBeVisible();
+  await expect(page.getByTestId('qty-adjust')).toHaveCount(0);
+  await page.goto('/employee/?latency=0');
+  await expect(page.getByTestId('employee-inventory')).toContainText('Map test kit');
 });
 
 test.describe("performance", () => {

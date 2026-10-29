@@ -4,7 +4,7 @@
 
 import { MapControls, OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN } from "../units";
@@ -55,8 +55,8 @@ export function CameraRig() {
   const lastSeq = useRef(0);
   const prevView = useRef(view);
 
-  // Place cameras when the view changes.
-  useEffect(() => {
+  // Read the latest viewport size only when switching camera modes.
+  const placeCamera = useEffectEvent(() => {
     const p = persp.current;
     const o = ortho.current;
     if (!p || !o) return;
@@ -88,13 +88,15 @@ export function CameraRig() {
       p.lookAt(rig.target);
     }
     invalidate();
-  }, [view]);
+  });
+  useEffect(() => { placeCamera(); }, [view]);
 
   // Fly to camera goals.
+  const applyGoal = useEffectEvent((next: CameraGoal) => startGoal(next));
   useEffect(() => {
     if (!goal || goal.seq === lastSeq.current) return;
     lastSeq.current = goal.seq;
-    startGoal(goal);
+    applyGoal(goal);
   }, [goal]);
 
   function startGoal(g: CameraGoal) {

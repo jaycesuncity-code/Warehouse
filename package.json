@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Sun City Plumbing & Heating internal parts + warehouse app (home, Warehouse scan app, Employee placeholder, shared mock API)",
+  "description": "Sun City Plumbing & Heating warehouse inventory, scanner, 3D map, labels, employee and packout application",
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --host",
@@ -24,7 +24,7 @@
     "qrcode-generator": "^2.0.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "three": "^0.186.1",
+    "three": "0.182.0",
     "zustand": "^5.0.16"
   },
   "devDependencies": {
@@ -34,7 +34,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@types/three": "^0.186.0",
+    "@types/three": "0.182.0",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.4.20",

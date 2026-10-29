@@ -14,7 +14,7 @@
 
 export type Role = 'viewer' | 'editor' | 'admin';
 
-export type IdPrefix = 'prt' | 'zon' | 'opn' | 'shf' | 'slt' | 'evt';
+export type IdPrefix = 'prt' | 'zon' | 'opn' | 'shf' | 'slt' | 'evt' | 'emp' | 'kit';
 
 export type PartId = string; // prt-xxxxxxxx (legacy ids may exist, so display code must not assume the regex)
 export type ZoneId = string;
@@ -31,6 +31,8 @@ export const DEPARTMENTS = [
   'Plumbing Install',
 ] as const;
 export type Department = (typeof DEPARTMENTS)[number];
+
+export type LocationType = 'primary' | 'overstock' | 'packout';
 
 export type ShelfKind = 'shelving' | 'pallet_rack' | 'cabinet' | 'bench' | 'floor_area';
 export type BinType = 'bin' | 'box' | 'tote' | 'loose' | 'drawer';
@@ -116,6 +118,7 @@ export interface Slot extends SlotGeometry {
 }
 
 export interface ShelfGeometry {
+  location_type?: LocationType;
   shelf_id: ShelfId;
   name: string;
   zone_id: ZoneId;
@@ -168,6 +171,8 @@ export interface CoLocatedPart {
 
 /** One part in one slot. */
 export interface Location {
+  location_type?: LocationType;
+  issued_kit_id?: string | null;
   slot_id: SlotId;
   location_code: string;
   zone_id: ZoneId;
@@ -210,8 +215,36 @@ export interface Part {
   version: number;
   par_total: number;
   on_hand_total: number;
+  available_total?: number;
+  issued_total?: number;
   locations: Location[];
 }
+
+export interface Employee {
+  employee_id: string;
+  name: string;
+  email: string;
+  active: boolean;
+  version: number;
+}
+export interface PackoutRecord {
+  kit_id: string;
+  name: string;
+  slot_id: string;
+  status: 'available' | 'issued';
+  employee_id: string | null;
+  issued_at: string | null;
+  issued_contents: { part_id: string; qty: number }[];
+  active: boolean;
+  version: number;
+}
+export interface Packout extends PackoutRecord {
+  location_code: string;
+  shelf_id: string;
+  employee_name: string | null;
+  contents: (SlotPart & {version: number})[];
+}
+export interface PackoutMutationResponse extends MutationBase { kit: Packout }
 
 export interface ApiEvent {
   event_id: EventId;
@@ -393,6 +426,7 @@ export interface ShelfListResponse {
   groups: ShelfGroup[];
 }
 export interface CreateShelfRequest {
+  location_type?: LocationType;
   name: string;
   zone_id: ZoneId;
   kind?: ShelfKind;
@@ -502,6 +536,14 @@ export interface EndpointSpec {
 }
 
 export const ENDPOINTS = {
+  listEmployees: { method: 'GET', path: '/api/employees', role: 'any' },
+  createEmployee: { method: 'POST', path: '/api/employees', role: 'editor' },
+  patchEmployee: { method: 'PATCH', path: '/api/employees/:employee_id', role: 'editor' },
+  listPackouts: { method: 'GET', path: '/api/packouts', role: 'any' },
+  createPackout: { method: 'POST', path: '/api/packouts', role: 'editor' },
+  issuePackout: { method: 'POST', path: '/api/packouts/:kit_id/issue', role: 'editor' },
+  returnPackout: { method: 'POST', path: '/api/packouts/:kit_id/return', role: 'editor' },
+  replenishPackout: { method: 'POST', path: '/api/packouts/:kit_id/replenish', role: 'editor' },
   me: { method: 'GET', path: '/api/me', role: 'any' },
   layout: { method: 'GET', path: '/api/layout', role: 'any' },
   getPart: { method: 'GET', path: '/api/parts/:part_id', role: 'any' },

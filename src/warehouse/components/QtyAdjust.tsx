@@ -65,6 +65,7 @@ export function QtyAdjust({ part, location, canEdit, onPartChange, reload }: Pro
         ...p,
         par_total: res.par_total,
         on_hand_total: res.on_hand_total,
+        available_total: res.on_hand_total - (p.issued_total ?? 0),
         locations: p.locations.map((l) =>
           l.slot_id === res.location.slot_id ? { ...l, ...res.location } : l,
         ),

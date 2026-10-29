@@ -42,6 +42,9 @@ function ShelfNode({ sh, open, onToggle }: { sh: LayoutShelf; open: boolean; onT
           onClick={() => select({ kind: "shelf", id: sh.shelf_id }, { fly: true, front: true })}
         >
           <span className="font-bold">{sh.name}</span>
+          {sh.location_type && sh.location_type !== 'primary' && (
+            <span className="rounded bg-maroon-tint px-1 text-[10px] font-bold capitalize text-maroon">{sh.location_type}</span>
+          )}
           <span className="truncate text-[11px] text-gray-500">
             {formatFtIn(sh.width_in)} · {sh.rows.length} rows · {sh.slots.length} slots
           </span>

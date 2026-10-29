@@ -2,7 +2,7 @@
 // walls and shelves, Esc exits. Touch: virtual joystick (WalkJoystick, DOM) + drag to look.
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { buildWalls, collideMove, collisionSegments, zoneAt } from "../geometry";
 import { frontDir, shelfToMap } from "../units";
@@ -34,7 +34,7 @@ function Walker() {
   }, [layout]);
 
   // Start 5' in front of the selected shelf, facing it; else where the camera was looking.
-  useEffect(() => {
+  const initializePosition = useEffectEvent(() => {
     const s = getMap();
     const sh = shelfById(s, selectedShelfId(s.selection));
     const dir = new THREE.Vector3();
@@ -54,17 +54,19 @@ function Walker() {
     camera.position.copy(start);
     pitch.current = -0.08;
     rig.walkPos = camera.position.clone();
-  }, []);
+  });
+  useEffect(() => { initializePosition(); }, []);
 
   useEffect(() => {
     const dom = gl.domElement;
+    const heldKeys = keys.current;
     let wasLocked = false;
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
-      keys.current.add(e.code);
+      heldKeys.add(e.code);
       if (e.code === "Escape" && !document.pointerLockElement) setMap({ view: "orbit" });
     };
-    const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+    const onKeyUp = (e: KeyboardEvent) => heldKeys.delete(e.code);
     const onClick = () => {
       if (document.pointerLockElement !== dom) {
         try {
@@ -127,7 +129,7 @@ function Walker() {
       dom.removeEventListener("pointercancel", onPointerUp);
       if (document.pointerLockElement === dom) document.exitPointerLock?.();
       walkInput.locked = false;
-      keys.current.clear();
+      heldKeys.clear();
     };
   }, [gl]);
 

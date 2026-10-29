@@ -1,5 +1,5 @@
 /**
- * Captures the key screens at phone (390 x 844) and desktop (1280 x 800) size into screenshots/.
+ * Captures the key screens at phone (390 x 844) and desktop (1280 x 800) size into artifacts/screenshots/.
  * Run: npx playwright test e2e/screens.spec.ts
  */
 import { mkdirSync } from 'node:fs';
@@ -17,7 +17,7 @@ for (const vp of VIEWPORTS) {
 
     test('capture', async ({ page }) => {
       test.setTimeout(180_000);
-      const dir = `screenshots/${vp.name}`;
+      const dir = `artifacts/screenshots/${vp.name}`;
       mkdirSync(dir, { recursive: true });
       let n = 0;
       const shot = async (p: Page, name: string, fullPage = true) => {
@@ -40,7 +40,8 @@ for (const vp of VIEWPORTS) {
       await page.goto('/employee/?latency=0');
       await shot(page, 'employee');
       await page.goto('/map/?latency=0');
-      await shot(page, 'map-placeholder');
+      await expect(page.getByTestId('map-canvas')).toBeVisible();
+      await shot(page, 'map');
       await page.goto('/warehouse/demo-labels.html?latency=0');
       await expect(page.getByTestId('demo-label').first()).toBeVisible();
       await shot(page, 'demo-labels');

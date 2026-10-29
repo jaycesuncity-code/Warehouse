@@ -53,8 +53,9 @@ import {
   upsertSlot,
   upsertZone,
 } from "./layoutOps";
+import { replaySnapshot } from "./snapshot";
 import { PRESETS, rowsFor, type PresetKey, type ShelfSize } from "./presets";
-import { searchFocus, type SearchFocus } from "./search";
+import { allSearchPages, searchFocus, type SearchFocus } from "./search";
 import { flyTo, getMap, isAdmin, setMap, shelfById, toast, type DialogState, type Selection } from "./store";
 
 // ---------------------------------------------------------------------------
@@ -151,7 +152,10 @@ function learnParts(parts: Part[]) {
 
 export async function loadMe() {
   try {
-    setMap({ me: await api.me() });
+    const me = await api.me();
+    const changed = getMap().me?.role !== me.role;
+    setMap({ me });
+    if (changed) invalidateParts();
   } catch (e) {
     if (isApiError(e, "network")) setMap({ offline: true });
   }
@@ -482,8 +486,11 @@ export async function addShelfAt(at: Vec, preset: PresetKey) {
     lay.zones,
     shelfCenter({ x_in: p.x_in, y_in: p.y_in, rotation_deg, width_in: size.width_in, depth_in: size.depth_in }),
   );
+  let nameIndex = lay.shelves.length + 1;
+  const names = new Set(lay.shelves.map((shelf) => shelf.name.toLowerCase()));
+  while (names.has(`shelf ${nameIndex}`)) nameIndex++;
   const body: ShelfCreate = {
-    name: `Shelf ${lay.shelves.length + 1}`,
+    name: `Shelf ${nameIndex}`,
     zone_id: zone?.zone_id ?? lay.zones[0]?.zone_id ?? "",
     kind: size.kind,
     x_in: p.x_in,
@@ -502,6 +509,12 @@ export async function addShelfAt(at: Vec, preset: PresetKey) {
 }
 
 export async function createShelf(body: ShelfCreate, label = "Add shelf") {
+  if (!body.name.trim()) {
+    const names = new Set(L().shelves.map((shelf) => shelf.name.toLowerCase()));
+    let index = 1;
+    while (names.has(`shelf ${index}`)) index++;
+    body = { ...body, name: `Shelf ${index}` };
+  }
   const tmp = tempId();
   const tmpShelf: LayoutShelf = {
     ...body,
@@ -794,6 +807,7 @@ const searchCache = new Map<string, PartSearchResult>();
 function invalidateParts() {
   searchCache.clear();
   setMap((s) => ({ partsRev: s.partsRev + 1 }));
+  if (getMap().search.q.trim()) void runSearch(getMap().search.q, { fly: false });
 }
 
 async function afterLocation(r: LocationWrite) {
@@ -1038,7 +1052,12 @@ export async function runSearch(q: string, opts: { fly?: boolean } = {}) {
       const key = query.toLowerCase();
       let r = searchCache.get(key);
       if (!r) {
-        r = await api.searchParts({ q: query, limit: 200 });
+        const all = await allSearchPages(
+          (offset) => api.searchParts({ q: query, limit: 100, offset }),
+          () => seq === searchSeq,
+        );
+        if (!all) return;
+        r = { ...all, limit: all.items.length, offset: 0 };
         searchCache.set(key, r);
       }
       items = r.items;
@@ -1175,76 +1194,9 @@ export function parseSnapshot(text: string): Layout {
 
 /** Admin: replays a snapshot through the API (zones, openings, shelves, slots). Part locations are not replayed. */
 export async function importSnapshot(snap: Layout): Promise<{ ok: number; failed: string[] }> {
-  let ok = 0;
-  const failed: string[] = [];
-  const attempt = async (label: string, fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      ok++;
-    } catch (e) {
-      failed.push(`${label}: ${errorText(e)}`);
-    }
-  };
-  const cur = getMap().layout!;
-  for (const z of snap.zones) {
-    const { zone_id, version: _v, ...fields } = z;
-    const existing = cur.zones.find((x) => x.zone_id === zone_id);
-    await attempt(`zone ${z.name}`, async () => {
-      if (existing) await api.patchZone(zone_id, { ...fields, version: existing.version });
-      else await api.createZone(fields);
-    });
-  }
-  for (const o of snap.openings) {
-    const { opening_id, version: _v, ...fields } = o;
-    const existing = cur.openings.find((x) => x.opening_id === opening_id);
-    await attempt(`opening ${o.tag}`, async () => {
-      if (existing) await api.patchOpening(opening_id, { ...fields, version: existing.version });
-      else await api.createOpening(fields);
-    });
-  }
-  for (const s of snap.shelves) {
-    const { shelf_id, version: _v, slots, zone_name: _zn, ...fields } = s;
-    const existing = cur.shelves.find((x) => x.shelf_id === shelf_id);
-    await attempt(`shelf ${s.name}`, async () => {
-      let target: Shelf;
-      if (existing) target = await api.patchShelf(shelf_id, { ...fields, version: existing.version });
-      else target = await api.createShelf({ ...fields, wall_ref: fields.wall_ref ?? null });
-      for (const sl of slots) {
-        const ex = target.slots.find((x) => x.slot_id === sl.slot_id);
-        if (ex) {
-          if (
-            ex.row_index !== sl.row_index ||
-            ex.col_start !== sl.col_start ||
-            ex.width_span !== sl.width_span ||
-            ex.height_span !== sl.height_span
-          )
-            await api.resizeSlot(sl.slot_id, {
-              width_span: sl.width_span,
-              height_span: sl.height_span,
-              col_start: sl.col_start,
-              row_index: sl.row_index,
-              version: ex.version,
-            });
-        } else {
-          await api.createSlot({
-            shelf_id: target.shelf_id,
-            row_index: sl.row_index,
-            col_start: sl.col_start,
-            width_span: sl.width_span,
-            height_span: sl.height_span,
-            slot_no: sl.slot_no,
-            bin_type: sl.bin_type,
-            bin_width_in: sl.bin_width_in,
-            bin_height_in: sl.bin_height_in,
-            bin_depth_in: sl.bin_depth_in,
-            bin_color: sl.bin_color,
-          });
-        }
-      }
-    });
-  }
+  const result = await replaySnapshot(snap, getMap().layout!, api);
   await loadLayout(true);
-  return { ok, failed };
+  return result;
 }
 
 // ---------------------------------------------------------------------------

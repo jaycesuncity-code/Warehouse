@@ -5,13 +5,21 @@ import type {
   ShelfListItem,
   ShelfRow,
 } from '../../contract';
+import type { LocationType } from '../../contract';
 import { shelfLocalToMap } from '../../units';
 import { withinGrid } from '../../grid';
-import { notFound, shelfNotEmpty, slotOutOfBounds, validation } from '../errors';
-import { activeStockInSlot, buildShelf, findShelf } from '../format';
+import { HttpError, notFound, shelfNotEmpty, validation } from '../errors';
+import { activeStockInSlot, buildShelf, findShelf, slotCode } from '../format';
 import { requireInt, requireNumber, requireRole, requireString, requireVersion } from '../rules';
 import type { MockState, ShelfRec, SlotRec } from '../state';
 import { ok, type Handler } from '../types';
+import { readBoolean, readNullableText, readText } from '../input';
+
+function locationType(value: unknown): LocationType {
+  if (typeof value !== 'string' || !['primary', 'overstock', 'packout'].includes(value))
+    throw validation({ location_type: 'Choose Primary, Overstock or Packout.' });
+  return value as LocationType;
+}
 
 const KINDS: ShelfKind[] = ['shelving', 'pallet_rack', 'cabinet', 'bench', 'floor_area'];
 
@@ -51,6 +59,8 @@ function readRows(value: unknown): ShelfRow[] {
   if (!Array.isArray(value) || !value.length) throw validation({ rows: 'A shelf needs at least one row.' });
   let lastTop = -Infinity;
   return value.map((r, i) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r))
+      throw validation({ rows: 'Each shelf row must be an object.' });
     const row = r as Partial<ShelfRow>;
     if (row.row_index !== i) throw validation({ rows: 'Rows must be numbered 0, 1, 2 ... from the bottom.' });
     const elevation = requireNumber(row.elevation_in, 'rows.elevation_in', { min: 0 });
@@ -60,7 +70,7 @@ function readRows(value: unknown): ShelfRow[] {
     lastTop = elevation;
     return {
       row_index: i,
-      row_label: row.row_label ? String(row.row_label) : i === 0 ? 'G' : String(i),
+      row_label: row.row_label ? readText(row.row_label, 'rows.row_label', 40) : i === 0 ? 'G' : String(i),
       elevation_in: elevation,
       clear_height_in: clear,
     };
@@ -89,6 +99,7 @@ export const createShelf: Handler = (c) => {
   if (!KINDS.includes(kind)) throw validation({ kind: `Use one of ${KINDS.join(', ')}.` });
   const shelf: ShelfRec = {
     shelf_id: c.tx.mint('shf'),
+    location_type: locationType(b.location_type ?? 'primary'),
     name,
     zone_id: assertZone(c.state, b.zone_id),
     kind,
@@ -100,8 +111,8 @@ export const createShelf: Handler = (c) => {
     height_in: requireNumber(b.height_in, 'height_in', { positive: true }),
     cols: requireInt(b.cols, 'cols', { min: 1 }),
     rows: readRows(b.rows),
-    wall_ref: b.wall_ref ?? null,
-    notes: b.notes ?? '',
+    wall_ref: readNullableText(b.wall_ref, 'wall_ref'),
+    notes: readText(b.notes ?? '', 'notes'),
     version: 1,
     active: true,
   };
@@ -117,6 +128,7 @@ export const patchShelf: Handler = (c) => {
   requireVersion(b.version, shelf, () => buildShelf(c.state, shelf), 'This shelf');
 
   const next: Partial<ShelfRec> = {};
+  if (b.location_type !== undefined) next.location_type = locationType(b.location_type);
   if (b.name !== undefined) {
     next.name = requireString(b.name, 'name');
     assertNameFree(c.state, next.name, shelf.shelf_id);
@@ -132,8 +144,8 @@ export const patchShelf: Handler = (c) => {
     if (b[k] !== undefined) next[k] = requireNumber(b[k], k, { positive: true });
   if (b.cols !== undefined) next.cols = requireInt(b.cols, 'cols', { min: 1 });
   if (b.rows !== undefined) next.rows = readRows(b.rows);
-  if (b.wall_ref !== undefined) next.wall_ref = b.wall_ref;
-  if (b.notes !== undefined) next.notes = b.notes;
+  if (b.wall_ref !== undefined) next.wall_ref = readNullableText(b.wall_ref, 'wall_ref');
+  if (b.notes !== undefined) next.notes = readText(b.notes, 'notes');
 
   const cols = next.cols ?? shelf.cols;
   const rowCount = (next.rows ?? shelf.rows).length;
@@ -141,8 +153,26 @@ export const patchShelf: Handler = (c) => {
     const bad = c.state.slots.filter(
       (s) => s.active && s.shelf_id === shelf.shelf_id && !withinGrid(s, cols, rowCount),
     );
-    if (bad.length)
-      throw slotOutOfBounds(`${bad.length} slot(s) would no longer fit on shelf ${next.name ?? shelf.name}.`);
+    if (bad.length) {
+      throw new HttpError(
+        'slot_out_of_bounds',
+        `${bad.length} slot(s) would no longer fit on shelf ${next.name ?? shelf.name}.`,
+        {
+          slots: bad.map((slot) => ({
+            slot_id: slot.slot_id,
+            location_code: slotCode(c.state, slot),
+            reason: [
+              slot.col_start + slot.width_span - 1 > cols ? `Extends past column ${cols}.` : '',
+              slot.row_index + slot.height_span > rowCount
+                ? `Extends above the ${rowCount} remaining row(s).`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+          })),
+        },
+      );
+    }
   }
   c.tx.update('shelves', shelf, (s) => Object.assign(s, next));
   const ev = c.tx.finish('edit', 'shelf', shelf.shelf_id);
@@ -152,7 +182,7 @@ export const patchShelf: Handler = (c) => {
 export const deleteShelf: Handler = (c) => {
   const shelf = findShelf(c.state, c.params.shelf_id);
   if (!shelf) throw notFound('That shelf');
-  const force = !!c.body?.force;
+  const force = readBoolean(c.body?.force, 'force');
   if (force) requireRole(c.role, 'admin');
   const slots = c.state.slots.filter((s) => s.active && s.shelf_id === shelf.shelf_id);
   const stocked = slots.flatMap((s) => activeStockInSlot(c.state, s.slot_id));

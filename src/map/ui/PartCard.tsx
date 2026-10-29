@@ -15,6 +15,7 @@ export function PartCard() {
   const rev = useMap((s) => s.partsRev);
   const layout = useMap((s) => s.layout);
   const can = useMap(editing);
+  const showCost = useMap((state) => state.me?.role !== "viewer");
   const [part, setPart] = useState<Part | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -70,7 +71,7 @@ export function PartCard() {
         {[
           ["On hand", part.on_hand_total],
           ["Par", part.par_total],
-          ["Cost", money(part.cost)],
+          ["Cost", showCost ? money(part.cost) : "—"],
           ["Price", money(part.sale_price)],
         ].map(([k, v]) => (
           <div key={k as string} className="rounded bg-gray-50 py-1">
@@ -79,6 +80,12 @@ export function PartCard() {
           </div>
         ))}
       </div>
+      {(part.issued_total ?? 0) > 0 && (
+        <p className="mx-3 mb-2 rounded bg-amber-50 p-2 text-xs">
+          {part.available_total ?? part.on_hand_total - (part.issued_total ?? 0)} available · {part.issued_total} in issued kits.
+          <a href="/packouts/" className="ml-1 font-bold text-maroon underline">Packouts →</a>
+        </p>
+      )}
       <div className="px-3 pb-2">
         <div className="field-label">Where it is ({part.locations.length})</div>
         {!part.locations.length && (
@@ -164,7 +171,7 @@ export function PartCard() {
         )}
         <a
           className="col-span-3 text-xs text-maroon underline"
-          href={`../warehouse/?part=${encodeURIComponent(part.part_id)}`}
+          href={`../warehouse/#/part/${encodeURIComponent(part.part_id)}`}
         >
           Open in the scan app
         </a>

@@ -7,9 +7,10 @@ test('no request leaves the machine and the console stays clean across every pag
   await page.goto('/?latency=0');
   await expect(page.getByTestId('btn-warehouse')).toBeVisible();
   await page.goto('/employee/?latency=0');
-  await expect(page.getByTestId('employee-coming-soon')).toBeVisible();
+  await expect(page.getByText('Employee inventory', { exact: true })).toBeVisible();
   await page.goto('/map/?latency=0&shelf=shf-aaaaaaaa');
-  await expect(page.getByTestId('map-coming-soon')).toBeVisible();
+  await expect(page.getByTestId('map-canvas')).toBeVisible();
+  await expect(page.getByTestId('map-search')).toBeVisible();
   await page.goto('/warehouse/demo-labels.html?latency=0');
   await expect(page.getByTestId('demo-label').first()).toBeVisible();
   expect(await page.getByTestId('demo-label').count()).toBeGreaterThanOrEqual(26);

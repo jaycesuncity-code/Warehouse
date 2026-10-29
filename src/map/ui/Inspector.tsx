@@ -4,6 +4,7 @@ import type {
   BinType,
   LayoutShelf,
   LayoutSlot,
+  LocationType,
   Opening,
   OpeningKind,
   Part,
@@ -268,6 +269,19 @@ function ShelfInspector({ sh }: { sh: LayoutShelf }) {
           testId="shelf-name"
           onCommit={(v) => save("name", { name: v }, "Rename shelf")}
         />
+        <label className="block">
+          <span className="field-label">Location type</span>
+          <select className="field" value={sh.location_type ?? 'primary'} disabled={dis}
+            data-testid="shelf-location-type"
+            onChange={(event) => void save('location_type', { location_type: event.target.value as LocationType }, 'Change location type')}>
+            <option value="primary">Primary</option>
+            <option value="overstock">Overstock</option>
+            <option value="packout">Packout staging / kits</option>
+          </select>
+        </label>
+        {sh.location_type === 'packout' && (
+          <a href="/packouts/" className="block text-sm font-bold text-maroon underline">Manage kits and employee returns →</a>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
             <span className="field-label">Kind</span>
@@ -664,9 +678,10 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
   const parts = full?.parts ?? [];
   const r = slotRect(sh, slot);
   const [partInfo, setPartInfo] = useState<Record<string, Part>>({});
+  const partIds = parts.map((part) => part.part_id).join("|");
   useEffect(() => {
     let live = true;
-    Promise.all(parts.map((p) => api.getPart(p.part_id).catch(() => null))).then((xs) => {
+    Promise.all((partIds ? partIds.split("|") : []).map((id) => api.getPart(id).catch(() => null))).then((xs) => {
       if (!live) return;
       const m: Record<string, Part> = {};
       xs.forEach((p) => p && (m[p.part_id] = p));
@@ -675,7 +690,10 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
     return () => {
       live = false;
     };
-  }, [parts.map((p) => p.part_id).join(), rev]);
+  }, [partIds, rev]);
+  const issuedKit = Object.values(partInfo).flatMap((part) => part.locations)
+    .find((location) => location.slot_id === slot.slot_id && location.issued_kit_id)?.issued_kit_id;
+  const contentsLoaded = parts.every((part) => partInfo[part.part_id]);
   const box = {
     w: slot.bin_width_in ?? r?.width ?? 0,
     h: slot.bin_height_in ?? r?.height ?? 0,
@@ -703,6 +721,12 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
           ← {sh.name}
         </button>
       </div>
+      {issuedKit && (
+        <p role="status" className="border-b border-amber-200 bg-amber-50 p-3 text-sm">
+          This kit is issued to an employee. Count remaining parts when it returns.
+          <a className="ml-1 font-bold text-maroon underline" href="/packouts/">Open packouts →</a>
+        </p>
+      )}
       <Section title={`Parts here (${parts.length})`} testId="slot-parts">
         {parts.length === 0 && (
           <p className="text-sm text-gray-500">Empty. {can ? "Drag a part here, or add one below." : ""}</p>
@@ -739,7 +763,7 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
                       : `About ${fits} fit in the bin (by bounding box).`}
                   </div>
                 )}
-                {can && (
+                {can && loc && !loc.issued_kit_id && (
                   <div className="mt-2 flex flex-wrap items-center gap-1">
                     <button
                       className="btn-ghost btn-sm"
@@ -800,7 +824,7 @@ function SlotInspector({ sh, slot }: { sh: LayoutShelf; slot: LayoutSlot }) {
             );
           })}
         </ul>
-        {can && <AddPartForm slotId={slot.slot_id} />}
+        {can && contentsLoaded && !issuedKit && <AddPartForm slotId={slot.slot_id} />}
       </Section>
       <Section title="Bin">
         <div className="grid grid-cols-2 gap-2">

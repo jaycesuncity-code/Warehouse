@@ -87,3 +87,27 @@ describe("result list grouping", () => {
     expect(unplaced.map((u) => u.part_id)).toEqual(["r"]);
   });
 });
+
+
+describe('complete search pages', () => {
+  it('includes a matching shelf beyond the first API page', async () => {
+    const { allSearchPages, searchFocus } = await import('./search');
+    const items = Array.from({ length: 101 }, (_, index) => ({
+      part_id: `part-${index}`, part_name: 'Matched part', part_code: `CODE-${index}`,
+      locations: [{ shelf_id: index === 100 ? 'shelf-other' : 'shelf-first', slot_id: `slot-${index}`, location_code: `A-${index}` }],
+    }));
+    const offsets: number[] = [];
+    const result = await allSearchPages(async (offset) => {
+      offsets.push(offset);
+      return { items: items.slice(offset, offset + 100), total: items.length };
+    });
+    expect(offsets).toEqual([0, 100]);
+    expect(searchFocus('Matched', result!.items).shelfIds).toEqual(['shelf-first', 'shelf-other']);
+    expect(searchFocus('Matched', result!.items).level).toBe('floor');
+  });
+  it('stops when a newer search supersedes an in-flight response', async () => {
+    const { allSearchPages } = await import('./search');
+    const result = await allSearchPages(async () => ({ items: [{ part_id: 'one' }], total: 1000 }), () => false);
+    expect(result).toBeUndefined();
+  });
+});

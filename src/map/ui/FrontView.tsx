@@ -2,7 +2,7 @@
 // height up the left, distance from the shelf's left edge along the bottom, standing in the aisle
 // facing the shelf. Rows (drag decks), columns, slots (draw / fill / resize), bins, part drops.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LayoutShelf, LayoutSlot, Row } from "../../shared/contract";
 import { overlappingSlots, slotBoundsProblem } from "../gridRules";
 import { cellWidth, formatFtIn, formatIn, recalcClearHeights, round16, slotRect } from "../units";
@@ -104,9 +104,8 @@ function FrontViewInner({ sh, slotId, onClose }: { sh: LayoutShelf; slotId: stri
     );
 
   // pointer handling for drawing / resizing / row dragging
-  useEffect(() => {
-    if (!drag) return;
-    const move = (e: PointerEvent) => {
+  const dragging = drag?.kind;
+  const movePointer = useEffectEvent((e: PointerEvent) => {
       const p = toLocal(e.clientX, e.clientY);
       const next = ((d: Drag | null): Drag | null => {
         if (!d) return d;
@@ -143,8 +142,8 @@ function FrontViewInner({ sh, slotId, onClose }: { sh: LayoutShelf; slotId: stri
       })(dragRef.current);
       dragRef.current = next;
       setDrag(next);
-    };
-    const up = () => {
+  });
+  const endPointer = useEffectEvent(() => {
       const d = dragRef.current;
       setDrag(null);
       if (!d) return;
@@ -179,14 +178,18 @@ function FrontViewInner({ sh, slotId, onClose }: { sh: LayoutShelf; slotId: stri
             `Move row ${old.row_label}`,
           );
       }
-    };
+  });
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (event: PointerEvent) => movePointer(event);
+    const up = () => endPointer();
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [drag?.kind, sh]);
+  }, [dragging]);
 
   const onBgDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;

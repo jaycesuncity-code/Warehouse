@@ -32,7 +32,7 @@ export function requireVersion(
 }
 
 export function requireInt(value: unknown, field: string, opts: { min?: number; max?: number } = {}): number {
-  if (typeof value !== 'number' || !Number.isInteger(value))
+  if (typeof value !== 'number' || !Number.isSafeInteger(value))
     throw validation({ [field]: 'Must be a whole number.' });
   if (opts.min !== undefined && value < opts.min)
     throw validation({ [field]: `Must be at least ${opts.min}.` });
@@ -61,6 +61,7 @@ export function optionalLength(value: unknown, field: string): number | null {
 
 export function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) throw validation({ [field]: 'Required.' });
+  if (value.length > 2000) throw validation({ [field]: 'Use at most 2000 characters.' });
   return value.trim();
 }
 

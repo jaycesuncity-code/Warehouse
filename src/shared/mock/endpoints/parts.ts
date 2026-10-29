@@ -1,9 +1,10 @@
 import type { ApiErrorBody, Part, PartInput } from '../../contract';
-import { notFound, validation } from '../errors';
+import { HttpError, notFound, validation } from '../errors';
 import { buildPart, findPart } from '../format';
 import { optionalLength, requireInt, requireNumber, requireString, requireVersion } from '../rules';
 import type { PartRec } from '../state';
 import { ok, type Handler } from '../types';
+import { readNullableText, readText } from '../input';
 
 export const getPart: Handler = (c) => {
   const part = findPart(c.state, c.params.part_id);
@@ -15,7 +16,23 @@ export const getPart: Handler = (c) => {
 
 const norm = (v: string): string => v.toLowerCase();
 
-function score(p: PartRec, q: string, tokens: string[]): number {
+export type PartSearchCandidate = Pick<
+  PartRec,
+  'part_id' | 'part_code' | 'part_name' | 'category' | 'description' | 'aliases' | 'active'
+>;
+export function partSearchOptions(query: URLSearchParams) {
+  const q = norm((query.get('q') ?? '').trim());
+  return {
+    q,
+    category: norm((query.get('category') ?? '').trim()),
+    limit: Math.min(Math.max(parseInt(query.get('limit') ?? '25', 10) || 25, 1), 100),
+    offset: Math.max(parseInt(query.get('offset') ?? '0', 10) || 0, 0),
+    tokens: q.split(/\s+/).filter(Boolean),
+    unassigned: query.get('unassigned') === 'true',
+  };
+}
+
+function score(p: PartSearchCandidate, q: string, tokens: string[]): number {
   const code = norm(p.part_code);
   const name = norm(p.part_name);
   const hay = [
@@ -34,21 +51,30 @@ function score(p: PartRec, q: string, tokens: string[]): number {
   return 20;
 }
 
-export const searchParts: Handler = (c) => {
-  const q = norm((c.query.get('q') ?? '').trim());
-  const category = norm((c.query.get('category') ?? '').trim());
-  const limit = Math.min(Math.max(parseInt(c.query.get('limit') ?? '25', 10) || 25, 1), 100);
-  const offset = Math.max(parseInt(c.query.get('offset') ?? '0', 10) || 0, 0);
-  const tokens = q.split(/\s+/).filter(Boolean);
-
-  const scored = c.state.parts
+/** The mock and SQL-backed search share identical ranking and locale-aware ordering. */
+export function rankPartCandidates<T extends PartSearchCandidate>(
+  parts: readonly T[],
+  options: ReturnType<typeof partSearchOptions>,
+  assigned = new Set<string>(),
+): T[] {
+  const { q, category, tokens, unassigned } = options;
+  return parts
     .filter((p) => p.active && (!category || norm(p.category ?? '') === category))
-    .filter(p => c.query.get("unassigned") !== "true" || !c.state.stock.some(l => l.active && l.part_id === p.part_id))
+    .filter((p) => !unassigned || !assigned.has(p.part_id))
     .map((p) => ({ p, s: tokens.length ? score(p, q, tokens) : 0 }))
     .filter((x) => x.s >= 0)
-    .sort((a, b) => b.s - a.s || a.p.part_name.localeCompare(b.p.part_name));
+    .sort((a, b) => b.s - a.s || a.p.part_name.localeCompare(b.p.part_name))
+    .map(({ p }) => p);
+}
 
-  const items: Part[] = scored.slice(offset, offset + limit).map((x) => buildPart(c.state, x.p, c.role));
+export const searchParts: Handler = (c) => {
+  const options = partSearchOptions(c.query);
+  const { limit, offset } = options;
+  const assigned = options.unassigned
+    ? new Set(c.state.stock.filter((row) => row.active).map((row) => row.part_id))
+    : undefined;
+  const scored = rankPartCandidates(c.state.parts, options, assigned);
+  const items: Part[] = scored.slice(offset, offset + limit).map((part) => buildPart(c.state, part, c.role));
   return ok({ items, total: scored.length, limit, offset });
 };
 
@@ -60,12 +86,11 @@ function readFields(body: Partial<PartInput>, partial: boolean): Fields {
   const f: Fields = {};
   if (!partial || body.part_code !== undefined) f.part_code = requireString(body.part_code, 'part_code');
   if (!partial || body.part_name !== undefined) f.part_name = requireString(body.part_name, 'part_name');
-  if (body.category !== undefined)
-    f.category = body.category === null ? null : String(body.category).trim() || null;
-  if (body.description !== undefined) f.description = String(body.description ?? '');
+  if (body.category !== undefined) f.category = readNullableText(body.category, 'category')?.trim() || null;
+  if (body.description !== undefined) f.description = readText(body.description ?? '', 'description');
   if (body.department !== undefined)
-    f.department = body.department === null ? null : String(body.department).trim() || null;
-  if (body.unit !== undefined) f.unit = String(body.unit || 'each');
+    f.department = readNullableText(body.department, 'department')?.trim() || null;
+  if (body.unit !== undefined) f.unit = readText(body.unit ?? 'each', 'unit', 80) || 'each';
   if (body.cost !== undefined)
     f.cost = body.cost === null ? null : requireNumber(body.cost, 'cost', { min: 0 });
   if (body.sale_price !== undefined)
@@ -76,15 +101,23 @@ function readFields(body: Partial<PartInput>, partial: boolean): Fields {
   for (const k of ['width_in', 'height_in', 'depth_in', 'weight_lb'] as const) {
     if (body[k] !== undefined) f[k] = optionalLength(body[k], k);
   }
-  if (body.aliases !== undefined)
-    f.aliases = (body.aliases ?? []).map((a) => String(a).trim()).filter(Boolean);
+  if (f.part_code && f.part_code.length > 150) throw validation({ part_code: 'Use at most 150 characters.' });
+  if (f.part_name && f.part_name.length > 500) throw validation({ part_name: 'Use at most 500 characters.' });
+  if (body.aliases !== undefined) {
+    if (
+      !Array.isArray(body.aliases) ||
+      body.aliases.length > 100 ||
+      body.aliases.some((a) => typeof a !== 'string' || a.length > 150)
+    ) {
+      throw validation({ aliases: 'Use an array of at most 100 short text aliases.' });
+    }
+    f.aliases = body.aliases.map((a) => a.trim()).filter(Boolean);
+  }
   return f;
 }
 
 function assertCodeFree(parts: PartRec[], code: string, exceptId?: string): void {
-  const clash = parts.find(
-    (p) => p.active && p.part_id !== exceptId && p.part_code.toLowerCase() === code.toLowerCase(),
-  );
+  const clash = parts.find((p) => p.part_id !== exceptId && p.part_code.toLowerCase() === code.toLowerCase());
   if (clash) throw validation({ part_code: `Already used by "${clash.part_name}".` });
 }
 
@@ -141,15 +174,25 @@ export const registerParts: Handler = (c) => {
   rows.forEach((row, index) => {
     const code = typeof row?.part_code === 'string' ? row.part_code.trim() : '';
     const name = typeof row?.part_name === 'string' ? row.part_name.trim() : '';
-    if (!code || !name || code.length>150 || name.length>500) {
+    if (!code || !name || code.length > 150 || name.length > 500) {
       results.push({ index, status: 'conflict', part_id: null, message: 'A part needs a code and a name.' });
       return;
     }
-    const supplied=(row as Partial<PartInput> & {part_id?:unknown}).part_id;
-    if(supplied !== undefined) {
-      const found=c.state.parts.find(p=>p.part_id===supplied && p.active);
-      if(!found || found.part_code.toLowerCase()!==code.toLowerCase() || found.part_name.trim().toLowerCase()!==name.toLowerCase()) {
-        results.push({index,status:'conflict',part_id:null,message:'Imported ID does not match the catalog.'});return;
+    const supplied = (row as Partial<PartInput> & { part_id?: unknown }).part_id;
+    if (supplied !== undefined) {
+      const found = c.state.parts.find((p) => p.part_id === supplied && p.active);
+      if (
+        !found ||
+        found.part_code.toLowerCase() !== code.toLowerCase() ||
+        found.part_name.trim().toLowerCase() !== name.toLowerCase()
+      ) {
+        results.push({
+          index,
+          status: 'conflict',
+          part_id: null,
+          message: 'Imported ID does not match the catalog.',
+        });
+        return;
       }
     }
     const existing = c.state.parts.find((p) => p.part_code.toLowerCase() === code.toLowerCase());
@@ -166,7 +209,24 @@ export const registerParts: Handler = (c) => {
       }
       return;
     }
-    const f = readFields(row, false);
+    let f: Fields;
+    try {
+      f = readFields(row, false);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 400) throw error;
+      const fields = error.body.fields;
+      results.push({
+        index,
+        status: 'conflict',
+        part_id: null,
+        message: fields
+          ? Object.entries(fields)
+              .map(([field, message]) => `${field}: ${message}`)
+              .join(' ')
+          : error.body.message,
+      });
+      return;
+    }
     const part: PartRec = {
       part_id: c.tx.mint('prt'),
       part_code: f.part_code!,

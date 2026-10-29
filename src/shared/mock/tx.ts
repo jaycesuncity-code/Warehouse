@@ -5,16 +5,21 @@
  *  - if the handler throws, the clone is simply dropped: nothing is committed (atomic, like db.batch()).
  */
 import type { ApiEvent, Role } from '../contract';
+import { assertInventoryIntegrity } from './integrity';
 import { mintId } from './mint';
 import type { MockState } from './state';
 
-export type Table = 'zones' | 'openings' | 'shelves' | 'slots' | 'parts' | 'stock';
+export type Table = 'zones' | 'openings' | 'shelves' | 'slots' | 'parts' | 'stock' | 'employees' | 'packouts';
 
 type AnyRow = { version: number; active?: boolean } & Record<string, unknown>;
 
 export const rowKey = (table: Table, rowIn: object): string => {
   const row = rowIn as Record<string, unknown>;
   switch (table) {
+    case 'employees':
+      return `employees:${row.employee_id}`;
+    case 'packouts':
+      return `packouts:${row.kit_id}`;
     case 'zones':
       return `zones:${row.zone_id}`;
     case 'openings':
@@ -76,6 +81,8 @@ export class Tx {
   mint(prefix: Parameters<typeof mintId>[0]): string {
     const s = this.state;
     const taken = new Set<string>([
+      ...s.employees.map((r) => r.employee_id),
+      ...s.packouts.map((r) => r.kit_id),
       ...s.zones.map((r) => r.zone_id),
       ...s.openings.map((r) => r.opening_id),
       ...s.shelves.map((r) => r.shelf_id),
@@ -100,6 +107,7 @@ export class Tx {
 
   /** Record the event for everything touched so far and return it. */
   finish(action: string, entity: string, entityId: string, reason?: string | null): ApiEvent {
+    assertInventoryIntegrity(this.state);
     const before: Record<string, unknown> = {};
     const after: Record<string, unknown> = {};
     for (const t of this.touched) {

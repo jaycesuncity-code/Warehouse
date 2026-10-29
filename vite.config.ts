@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => ({
         employee: resolve(root, 'employee/index.html'),
         map: resolve(root, 'map/index.html'),
         labels: resolve(root, 'labels/index.html'),
+        packouts: resolve(root, 'packouts/index.html'),
       },
     },
   },

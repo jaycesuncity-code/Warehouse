@@ -39,6 +39,7 @@ makeY4m('prt-k7m2qx9d', video);
 test.use({
   permissions: ['camera'],
   launchOptions: {
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
     args: [
       '--use-fake-device-for-media-stream',
       '--use-fake-ui-for-media-stream',

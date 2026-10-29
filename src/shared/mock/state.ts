@@ -5,7 +5,7 @@
  * State persists in localStorage (wrapped in try/catch: the app works without it, state then lives in memory
  * for the page). Every request re-reads storage, so two tabs stay in step.
  */
-import type { ApiEvent, Opening, Zone } from '../contract';
+import type { ApiEvent, Employee, PackoutRecord, Opening, Zone } from '../contract';
 import { DEMO_DATA, type DemoPart, type DemoShelf, type DemoSlot, type DemoStock } from './demo-data';
 
 export type ZoneRec = Zone & { active: boolean };
@@ -17,6 +17,8 @@ export type StockRec = DemoStock & { active: boolean };
 
 export interface MockState {
   schema: 1;
+  employees: Employee[];
+  packouts: PackoutRecord[];
   zones: ZoneRec[];
   openings: OpeningRec[];
   shelves: ShelfRec[];
@@ -37,6 +39,8 @@ export function freshState(): MockState {
   const d = structuredClone(DEMO_DATA);
   return {
     schema: 1,
+    employees: [],
+    packouts: [],
     zones: d.zones.map((z) => ({ ...z, active: true })),
     openings: d.openings.map((o) => ({ ...o, active: true })),
     shelves: d.shelves.map((s) => ({ ...s, active: true })),
@@ -116,6 +120,8 @@ export function loadState(): MockState {
     try {
       const parsed = JSON.parse(raw) as MockState;
       if (parsed && parsed.schema === 1 && Array.isArray(parsed.stock)) {
+        parsed.employees ??= [];
+        parsed.packouts ??= [];
         lastRaw = raw;
         lastParsed = parsed;
         return parsed;

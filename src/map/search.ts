@@ -99,3 +99,22 @@ export function groupResults(
     }));
   return { groups, unplaced };
 }
+
+/** Fetch every matching page so a match beyond the first 100 parts still influences map focus. */
+export async function allSearchPages<T extends { part_id: string }>(
+  fetchPage: (offset: number) => Promise<{ items: T[]; total: number }>,
+  current: () => boolean = () => true,
+): Promise<{ items: T[]; total: number } | undefined> {
+  const items = new Map<string, T>();
+  let offset = 0;
+  let total: number;
+  do {
+    const page = await fetchPage(offset);
+    if (!current()) return undefined;
+    total = page.total;
+    for (const item of page.items) items.set(item.part_id, item);
+    if (!page.items.length) break;
+    offset += page.items.length;
+  } while (offset < total);
+  return { items: [...items.values()], total };
+}

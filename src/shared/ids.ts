@@ -7,9 +7,11 @@ import type { IdPrefix } from './contract';
 export const ID_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz';
 export const ID_BODY_LENGTH = 8;
 
-export const ID_PREFIXES: readonly IdPrefix[] = ['prt', 'zon', 'opn', 'shf', 'slt', 'evt'];
+export const ID_PREFIXES: readonly IdPrefix[] = ['prt', 'zon', 'opn', 'shf', 'slt', 'evt', 'emp', 'kit'];
 
 export const ID_PATTERNS: Record<IdPrefix, RegExp> = {
+  emp: /^emp-[2-9a-hj-km-np-z]{8}$/,
+  kit: /^kit-[2-9a-hj-km-np-z]{8}$/,
   prt: /^prt-[2-9a-hj-km-np-z]{8}$/,
   zon: /^zon-[2-9a-hj-km-np-z]{8}$/,
   opn: /^opn-[2-9a-hj-km-np-z]{8}$/,
