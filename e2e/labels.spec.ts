@@ -60,13 +60,22 @@ test.describe('connected parts and labels', () => {
     expect([pdf.width, pdf.height]).toEqual([612, 792]);
     expect(pdf.pages.flatMap(page => page.decoded)).toEqual([registered.part_id]);
     expect((await state(page)).stock).toEqual(stock);
-    const opened = page.waitForEvent('popup');
-    await editor(page).locator('#btnTest').click();
-    await (await opened).close();
-    await expect(page.locator('#status')).toContainText('Printer test page opened');
+    const inlinePdf = await page.evaluate(() => navigator.pdfViewerEnabled === true);
+    if (inlinePdf) {
+      const opened = page.waitForEvent('popup');
+      await editor(page).locator('#btnTest').click();
+      await (await opened).close();
+      await expect(editor(page).locator('#pdfFrame')).toHaveAttribute('src', /^blob:/);
+    } else {
+      const calibrationDownload = page.waitForEvent('download');
+      await editor(page).locator('#btnTest').click();
+      expect((await calibrationDownload).suggestedFilename()).toBe('sun-city-print-test.pdf');
+      await expect(editor(page).locator('#pdfFrame')).not.toHaveAttribute('src');
+      await expect(editor(page).locator('#pdfFallback')).toBeVisible();
+    }
+    await expect(page.locator('#status')).toContainText('Printer test page ready');
     await expect(page.locator('#download')).toBeDisabled();
     await expect(page.locator('#openPdf')).toBeHidden();
-    await expect(editor(page).locator('#pdfFrame')).toHaveAttribute('src', /^blob:/);
     await generate(page);
     await expect(page.locator('#status')).toContainText('PDF ready: 1 verified label');
     // The actual keyboard-wedge scanner consumes the exact payload decoded from the PDF.
@@ -75,6 +84,41 @@ test.describe('connected parts and labels', () => {
     await page.keyboard.type(pdf.pages[0].decoded[0]);
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Copper Tee', exact: true })).toBeVisible();
+  });
+
+  test('PDF generation without an inline viewer never downloads until requested', async ({ page, context }) => {
+    await context.addInitScript(() => Object.defineProperty(navigator, 'pdfViewerEnabled', { value: false }));
+    const downloads: string[] = [];
+    page.on('download', item => downloads.push(item.suggestedFilename()));
+    await open(page); await add(page, 'LABEL-NO-PDF-VIEWER', 'Portable PDF fitting'); await register(page);
+    const stock = (await state(page)).stock;
+    const registered = (await state(page)).parts.find(part => part.part_code === 'LABEL-NO-PDF-VIEWER')!;
+    await generate(page);
+    await expect(page.locator('#status')).toContainText('PDF ready: 1');
+    await expect(editor(page).locator('#pdfFallback')).toBeVisible();
+    await expect(editor(page).locator('#pdfFrame')).not.toHaveAttribute('src');
+    expect(downloads).toEqual([]);
+    const downloaded = page.waitForEvent('download');
+    await page.locator('#download').click();
+    const download = await downloaded;
+    expect(download.suggestedFilename()).toBe('sun-city-bin-labels.pdf');
+    const pdf = inspectLabelPdf(await readFile((await download.path())!));
+    expect(pdf.pages.flatMap(page => page.decoded)).toEqual([registered.part_id]);
+    expect(downloads).toEqual(['sun-city-bin-labels.pdf']);
+    await expect(page.locator('#openPdf')).toHaveText('Download to view / print');
+    await expect(page.locator('#openPdf')).toHaveAttribute('download', 'sun-city-bin-labels.pdf');
+    const linkedDownload = page.waitForEvent('download');
+    await page.locator('#openPdf').click();
+    expect((await linkedDownload).suggestedFilename()).toBe('sun-city-bin-labels.pdf');
+    const calibrationDownload = page.waitForEvent('download');
+    await editor(page).locator('#btnTest').click();
+    expect((await calibrationDownload).suggestedFilename()).toBe('sun-city-print-test.pdf');
+    await expect(editor(page).locator('#lnkPdf')).toHaveAttribute('download', 'sun-city-print-test.pdf');
+    await expect(editor(page).locator('#pdfFrame')).not.toHaveAttribute('src');
+    await generate(page);
+    await expect(page.locator('#status')).toContainText('PDF ready: 1');
+    expect(downloads).toEqual(['sun-city-bin-labels.pdf', 'sun-city-bin-labels.pdf', 'sun-city-print-test.pdf']);
+    expect((await state(page)).stock).toEqual(stock);
   });
 
   test('partial successes remain exportable and retry without duplicate records', async ({ page }) => {

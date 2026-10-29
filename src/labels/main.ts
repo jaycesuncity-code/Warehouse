@@ -182,6 +182,11 @@ async function run(register: boolean) {
       output = { blob, url: URL.createObjectURL(blob), fingerprint: expected };
       const open = document.querySelector<HTMLAnchorElement>('#openPdf')!;
       open.href = output.url; open.hidden = false;
+      if (navigator.pdfViewerEnabled === true) {
+        open.removeAttribute('download'); open.target = '_blank'; open.textContent = 'Open / print PDF';
+      } else {
+        open.download = 'sun-city-bin-labels.pdf'; open.removeAttribute('target'); open.textContent = 'Download to view / print';
+      }
       const settings = bridge().S;
       const pages = Math.ceil((Number(settings.skip) + rows.length) / (Number(settings.rows) * 2));
       message(`PDF ready: ${rows.length} verified label(s) on ${pages} US Letter sheet(s). Use 100% / Actual size when printing.`);
@@ -260,7 +265,7 @@ window.addEventListener('warehouse-label-change', onEditorChange);
 window.addEventListener('warehouse-generate', () => void run(false));
 window.addEventListener('warehouse-print-test', () => {
   invalidateOutput(); renderSelection();
-  message('Printer test page opened. Print at 100% / Actual size and measure its 1-inch square. Generate labels again to restore the label preview and downloads.');
+  message('Printer test page ready. Print at 100% / Actual size and measure its 1-inch square. Generate labels again to restore the label preview and downloads.');
 });
 window.addEventListener('pagehide', saveDraft);
 frame.onload = () => {

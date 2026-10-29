@@ -19,7 +19,23 @@ export function integratedRenderer(source: string): string {
   replace("$('#btnDlPdf').addEventListener('click', () => { if (window.__lastPdfBlob) download(window.__lastPdfBlob, `bin-labels_${stamp()}.pdf`); });", "$('#btnDlPdf').hidden=true;");
   replace("$('#btnDlCsv').addEventListener('click', downloadCsv);", "$('#btnDlCsv').hidden=true;");
   replace("$('#btnDlXlsx').addEventListener('click', downloadXlsx);", "$('#btnDlXlsx').hidden=true;");
-  replace('const blob = buildTestPdf(); const url = showPdf(blob);', "parent.dispatchEvent(new Event('warehouse-print-test')); const blob = buildTestPdf(); const url = showPdf(blob);");
+  replace('const blob = buildTestPdf(); const url = showPdf(blob);', "parent.dispatchEvent(new Event('warehouse-print-test')); const blob = buildTestPdf(); const url = showPdf(blob, 'sun-city-print-test.pdf');");
+  // Navigating to a PDF when the native viewer is disabled causes an unsolicited
+  // blob download. Keep preview navigation behind the browser's capability flag.
+  replace('function showPdf(blob) {', "function showPdf(blob, filename = 'sun-city-bin-labels.pdf') {");
+  replace("const fr = $('#pdfFrame'); fr.src = gen.url; fr.classList.remove('hidden');", `const fr = $('#pdfFrame'), inline = navigator.pdfViewerEnabled === true;
+  if(inline) { fr.src = gen.url; fr.classList.remove('hidden'); }
+  else { fr.removeAttribute('src'); fr.classList.add('hidden'); }
+  $('#pdfFallback').classList.toggle('hidden', inline);`);
+  replace("$('#lnkPdf').href = gen.url; return gen.url;", `const link = $('#lnkPdf'); link.href = gen.url;
+  if(navigator.pdfViewerEnabled === true) { link.removeAttribute('download'); link.target='_blank'; link.textContent='Open PDF in new tab'; }
+  else { link.download=filename; link.removeAttribute('target'); link.textContent='Download PDF to view / print'; }
+  return gen.url;`);
+  replace("try { window.open(url, '_blank'); } catch (e) { /* the inline preview below still shows it */ }", `if(navigator.pdfViewerEnabled === true) {
+      try { window.open(url, '_blank'); } catch (e) { /* the inline preview below still shows it */ }
+    } else download(blob, 'sun-city-print-test.pdf');`);
+  replace('<iframe class="pdf hidden" id="pdfFrame" title="PDF preview"></iframe>', `<p id="pdfFallback" class="msg warn hidden" role="status">This browser cannot display PDFs inline. Use the PDF link to view or print this file in your PDF application at 100% / Actual size.</p>
+    <iframe class="pdf hidden" id="pdfFrame" title="PDF preview"></iframe>`);
   replace('let stats = {};', `let stats = {};
 let selectedKeys = null;
 const printingCount = () => selectedKeys === null ? rows.length : rows.filter(row => selectedKeys.has(row.k)).length;`);
@@ -72,6 +88,7 @@ const printingCount = () => selectedKeys === null ? rows.length : rows.filter(ro
       if(gen.url) URL.revokeObjectURL(gen.url);
       gen.url=null; gen.done=false; gen.dirty=false; window.__lastPdfBlob=null;
       $('#pdfFrame').removeAttribute('src'); $('#pdfFrame').classList.add('hidden');
+      $('#pdfFallback').classList.add('hidden');
       $('#lnkPdf').removeAttribute('href'); $('#exportRow').classList.add('hidden'); $('#summary').classList.add('hidden');
     },
     async renderConfirmed(list) {

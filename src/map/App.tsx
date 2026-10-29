@@ -20,6 +20,7 @@ import { LabelLayer } from "./scene/labels";
 import { dropPicker } from "./scene/DropPicker";
 import { DialogHost, FailedEdits, ToastBridge } from "./ui/Dialogs";
 import { FrontView } from "./ui/FrontView";
+import { GraphicsBoundary } from "./ui/GraphicsBoundary";
 import { Inspector } from "./ui/Inspector";
 import { LeftPanel, PartsPanel, readPartDrag, TreePanel } from "./ui/LeftPanel";
 import { PartCard } from "./ui/PartCard";
@@ -142,12 +143,14 @@ function Viewport({ showResults }: { showResults: boolean }) {
         );
       }}
     >
-      <MapCanvas />
-      <LabelLayer labels={labels} />
-      <CursorReadout />
-      <NorthArrow />
-      <Legend />
-      <ToolHint />
+      <GraphicsBoundary>
+        <MapCanvas />
+        <LabelLayer labels={labels} />
+        <CursorReadout />
+        <NorthArrow />
+        <Legend />
+        <ToolHint />
+      </GraphicsBoundary>
       <FailedEdits />
       {showResults && searchActive && (
         <div className="absolute left-2 top-2 z-20 w-80 max-w-[calc(100%-5rem)] rounded-lg border border-gray-200 bg-white/95 shadow-xl">

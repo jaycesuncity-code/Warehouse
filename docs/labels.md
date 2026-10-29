@@ -51,6 +51,11 @@ is used during PDF generation.
   clears the label-download buttons so they cannot disagree with the preview;
   generate labels again when calibration is finished.
 - Expected quantity stays in draft/export records; it is never posted to stock.
+- Inline PDF preview is used when the browser reports PDF-viewer support. In a
+  browser without that support, generating labels shows an explicit fallback
+  and starts no download. **Download PDF** and **Download to view / print** save
+  `sun-city-bin-labels.pdf`; **Print test page** saves `sun-city-print-test.pdf`.
+  Open the downloaded file in a PDF application and print at Actual size.
 
 ## Spreadsheet handling
 
@@ -90,3 +95,7 @@ two skipped positions on page one and three labels on page two. This verifies
 software output, not a physical printer. The stale-output browser check also
 covers a late edit that finishes after the renderer has exposed its preview;
 failed generation clears the frame preview and every print/download link.
+An additional browser regression disables inline PDF viewing and checks that
+generation causes no unsolicited downloads, both explicit label-download paths
+retain the correct filename and QR payload, and calibration downloads remain
+separate from label output.

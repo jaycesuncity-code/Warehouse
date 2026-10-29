@@ -6,6 +6,25 @@ The code is developed on `integration/workstream-c-3d-map` in PR #1. The existin
 
 No production database/schema change, production deployment, main merge or Cloudflare Access policy change has been performed by this implementation effort. The actual production schema, current Pages bindings and Access application audience have not been inspected through authenticated Cloudflare access. Do not interpret local tests as verification of those settings.
 
+## Observed deployment state — 2026-10-29
+
+The existing Cloudflare Git integration automatically builds branch previews when the integration branch is pushed. PR #1's Cloudflare check reports successful deployment of `35806757ecf3f5cc444c8900687d42fd9f3bdcd5` at [its immutable preview](https://20c5c4dc.warehouse-5jk.pages.dev), with [a moving branch preview](https://integration-workstream-c-3d.warehouse-5jk.pages.dev). A successful Pages build does not establish a usable database-backed environment.
+
+Read-only, unauthenticated checks of both preview URLs returned the current frontend with HTTP 200. Both `/api/health` and `/api/me` reached the Pages Function and returned HTTP 503, `Cache-Control: no-store`, and:
+
+```json
+{
+  "error": "not_configured",
+  "message": "Configure a valid Cloudflare Access team domain and application audience."
+}
+```
+
+This identifies the first preview blocker: at least one of `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` is missing or invalid. The check runs before JWT verification and before the D1 binding is accessed. It does **not** establish the preview database's identity, isolation, or schema. No inventory mutations were attempted on this unverified preview.
+
+Separately, the existing production URLs `https://warehouse-5jk.pages.dev/api/health` and `/api/me` returned HTTP 200 **homepage HTML**, not JSON API responses. The production and preview frontend asset hashes differ. Do not treat the production HTTP 200 as a successful API health check or infer its configuration from the preview's error. None of these public requests encountered an Access login redirect; the actual account policies remain unverified.
+
+The Cloudflare dashboard requires sign-in, and no new sign-in flow was started. Configure or correct the verified Access values in the intended environment, confirm the database is isolated, then run the authenticated environment checks below. The deployment links above are diagnostic previews, not an approved working release.
+
 ## Configuration ownership
 
 The checked-in `wrangler.toml` is for **local development only**. Its D1 ID is an all-zero local fixture, and it intentionally omits `pages_build_output_dir`. The existing Pages dashboard remains the source of remote configuration.

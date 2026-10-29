@@ -16,7 +16,6 @@ export function MapCanvas() {
   const continuous = useMap((s) => s.view === "walk" || (!s.reducedMotion && s.search.focus.shelfIds.length > 0));
   return (
     <Canvas
-      fallback={<div className="p-6 text-sm"><p className="font-bold">This browser cannot display the 3D map.</p><p className="mt-2">Enable hardware acceleration or use another browser. You can still search and scan parts.</p><a href="/warehouse/" className="mt-3 inline-block font-bold text-maroon underline">Open warehouse scanner →</a></div>}
       frameloop={continuous ? "always" : "demand"}
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance" }}

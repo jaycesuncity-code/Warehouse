@@ -29,4 +29,4 @@ The repository's Wrangler file is local-only to avoid overriding existing dashbo
 
 ## What remains deliberately unclaimed
 
-A remote preview, actual production schema compatibility, deployed Access policies and physical print calibration are not verified by local tests. Warehouse measurements remain visibly unverified until surveyed. No production changes have been performed.
+The automatic Cloudflare branch preview has been inspected read-only: its frontend deploys, but the API returns HTTP 503 because the Access team domain or audience is missing or invalid. Its D1 isolation and schema remain unverified. The existing production API URLs return homepage HTML rather than JSON. See [deployment evidence](deployment.md). Authenticated remote workflows, actual production schema compatibility, deployed Access policies and physical print calibration remain release gates. Warehouse measurements remain visibly unverified until surveyed. No production changes have been performed.

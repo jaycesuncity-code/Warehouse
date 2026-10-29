@@ -14,7 +14,7 @@ The 3D map and original scanner use the same [API client](../src/shared/api.ts),
 
 ## Geometry editing and recovery
 
-Floor, orbit, walk, and front views remain available, with mobile panels and a touch joystick. Camera initialization does not rerun during unrelated layout updates. The canvas renders on demand except during active movement or animated search indicators. Devices without WebGL receive an explanation and a link to the scanner.
+Floor, orbit, walk, and front views remain available, with mobile panels and a touch joystick. Camera initialization does not rerun during unrelated layout updates. The canvas renders on demand except during active movement or animated search indicators. A viewport-scoped graphics boundary checks WebGL2 availability before starting Three.js and catches graphics initialization/render failures. Unsupported devices receive an explanation, an in-place retry button and a scanner link; navigation, part search and SVG shelf front views remain usable. A plain canvas fallback did not catch the real context-creation failure, which originally blanked the page; desktop and phone regressions cover that failure and recovery.
 
 Geometry changes use optimistic versions. A shelf-column or row change that would strand bins returns `409 slot_out_of_bounds` with the actual offending slot IDs, location codes, and reasons. Rejected requests do not alter shelf or slot state. Occupied-slot, overlap, stale-version, and offline retry dialogs preserve the original interactions.
 
@@ -49,7 +49,7 @@ The traces also exposed a real first-entry plan-to-walk race: the walking contro
 
 The subsequent remote run at `986a788` passed 74 cases, including the camera regression, and exposed a separate slow-frame collision stall. At a 100 ms running frame, a requested step could cross a wall; endpoint correction pushed it outside and the crossing guard returned the original position indefinitely. The exact trace coordinate reproduced this failure locally. Long moves now use bounded substeps, retaining the crossing guard, body clearance, door passage and wall sliding. Unit regressions confirm consistent wall contact at 60, 30 and 10 frames per second. The browser wall-clearance assertions and timeouts were not relaxed.
 
-The current full suite contains **75 browser tests**, including the downloaded label PDF/scanner roundtrip, malformed-snapshot rejection before any save, and employee/packout retry regressions. Check PR #1 for the full remote result on the exact proposed commit. These browser results use the explicit demo build; the separate compiled-worker/D1 production-browser gate verifies authenticated live API behavior. Deployment settings still require environment verification. The initial full local log is `artifacts/release-e2e.log`, with test artifacts in `artifacts/release-e2e-results/`.
+The current full suite contains **78 browser tests**, including the downloaded label PDF/scanner roundtrip, unsupported PDF-viewer behavior, desktop/mobile graphics fallback and retry, malformed-snapshot rejection before any save, and employee/packout retry regressions. Check PR #1 for the full remote result on the exact proposed commit. These browser results use the explicit demo build; the separate compiled-worker/D1 production-browser gate verifies authenticated live API behavior. Deployment settings still require environment verification. The initial full local log is `artifacts/release-e2e.log`, with test artifacts in `artifacts/release-e2e-results/`.
 
 Run the standard Playwright setup and tests after `npm ci`:
 

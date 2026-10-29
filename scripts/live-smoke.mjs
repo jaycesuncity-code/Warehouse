@@ -230,14 +230,24 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     assert.ok(created && canonicalId.test(created.part_id));
     await page.reload();
     await expect(page.locator('#selection')).toContainText(created.part_id);
+    const labelDownloads = [];
+    const recordDownload = (download) => labelDownloads.push(download.suggestedFilename());
+    page.on('download', recordDownload);
     await page.locator('#generate').click();
     await expect(page.locator('#status')).toContainText('PDF ready: 1 verified label');
+    if (!(await page.evaluate(() => navigator.pdfViewerEnabled === true))) {
+      await expect(frame.locator('#pdfFallback')).toBeVisible();
+      await expect(frame.locator('#pdfFrame')).not.toHaveAttribute('src');
+    }
+    assert.deepEqual(labelDownloads, [], 'Generating a preview must not start an unsolicited download');
     const downloaded = page.waitForEvent('download');
     await page.locator('#download').click();
     const download = await downloaded;
     assert.equal(download.suggestedFilename(), 'sun-city-bin-labels.pdf');
     const pdfPath = join(directory, 'browser-live-label.pdf');
     await download.saveAs(pdfPath);
+    assert.deepEqual(labelDownloads, ['sun-city-bin-labels.pdf']);
+    page.off('download', recordDownload);
     const pdf = await readFile(pdfPath);
     assert.ok(pdf.subarray(0, 5).equals(Buffer.from('%PDF-')));
     const mediaBox = /\/MediaBox\s*\[\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(

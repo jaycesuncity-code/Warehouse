@@ -30,6 +30,7 @@ declare global {
     __mock: typeof import("../src/shared/mock");
     __mapTimings?: Record<string, number>;
     __releaseShelfCreate?: () => void;
+    __restoreMapGraphics?: () => void;
   }
 }
 
@@ -147,6 +148,49 @@ async function assertConsistent(page: Page) {
 }
 
 // ---------------------------------------------------------------------------
+
+test.describe("unavailable map graphics", () => {
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    test(`keeps search, shelf contents and scanner usable, then retries @${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.addInitScript(() => {
+        const original = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, ...args: unknown[]) {
+          if (["webgl", "webgl2", "experimental-webgl"].includes(contextId)) return null;
+          return Reflect.apply(original, this, [contextId, ...args]);
+        } as typeof original;
+        window.__restoreMapGraphics = () => { HTMLCanvasElement.prototype.getContext = original; };
+      });
+      await page.goto("/map/");
+      const fallback = page.getByTestId("map-graphics-unavailable");
+      await expect(fallback).toBeVisible();
+      await expect(fallback).toContainText("hardware acceleration");
+      await expect(page.getByRole("link", { name: "Back to home" })).toBeVisible();
+      await expect(page.getByTestId("loading")).toHaveCount(0);
+      await page.getByRole("button", { name: "Retry 3D map" }).click();
+      await expect(fallback).toBeVisible();
+      await shot(page, `graphics-unavailable-${viewport.width}`);
+
+      // The real DOM shelf front and canonical part lookup do not require WebGL.
+      await page.getByTestId("map-search").fill("prt-yegeqahj");
+      await expect(page.getByTestId("part-card-name")).toHaveText("Air Filter 20x20x1 MERV 8");
+      await expect(page.getByTestId("front-view")).toBeVisible();
+      await page.getByRole("link", { name: "Open in the scan app" }).click();
+      await expect(page).toHaveURL(/\/warehouse\/#\/part\/prt-yegeqahj$/);
+      await expect(page.getByTestId("part-name")).toHaveText("Air Filter 20x20x1 MERV 8");
+
+      // Recover in place once graphics are available; no application reload is required.
+      await page.goBack();
+      await expect(fallback).toBeVisible();
+      await page.evaluate(() => window.__restoreMapGraphics?.());
+      await page.getByRole("button", { name: "Retry 3D map" }).click();
+      await page.waitForFunction(() => window.__mapDebug?.shelves().length > 0);
+      await expect(fallback).toHaveCount(0);
+      await expect(page.getByTestId("map-canvas")).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+  }
+});
 
 test.describe("top-down scene (asserted from the rendered scene, not by eye)", () => {
   for (const vp of [

@@ -15,7 +15,7 @@ interface Renderer {
   renderConfirmed: (rows: StagedRow[]) => Promise<Blob>;
   invalidate: () => void;
 }
-function editor() {
+function editor(inlinePdf = true) {
   const errors: unknown[] = [];
   const blobs: Blob[] = [];
   const console = new VirtualConsole(); console.on('jsdomError', error => errors.push(error));
@@ -23,6 +23,7 @@ function editor() {
     runScripts: 'dangerously', url: 'https://labels.test', virtualConsole: console,
     beforeParse(window) {
       window.structuredClone = structuredClone;
+      Object.defineProperty(window.navigator, 'pdfViewerEnabled', { value: inlinePdf });
       window.URL.createObjectURL = value => { blobs.push(value as Blob); return 'blob:test'; }; window.URL.revokeObjectURL = () => {};
       window.HTMLElement.prototype.scrollIntoView = () => {};
     },
@@ -136,6 +137,31 @@ describe('preserved vector label renderer integration', () => {
       .map(match => inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1')).join('\n');
     expect(contents).toMatch(/72\.?\s+576\.?\s+72\.?\s+-72\.?\s+re/);
     expect(contents).toContain('PRINT TEST PAGE');
+    dom.window.close();
+  });
+  it('does not navigate to PDFs when inline viewing is unavailable and provides named explicit downloads', async () => {
+    const { dom, bridge } = editor(false);
+    const downloads: string[] = [];
+    let opened = 0;
+    dom.window.open = () => { opened++; return null; };
+    dom.window.document.addEventListener('click', event => {
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'A') { event.preventDefault(); downloads.push(target.getAttribute('download') || ''); }
+    });
+    await bridge.renderConfirmed([row()]);
+    const frame = dom.window.document.querySelector('#pdfFrame')!;
+    expect(frame.hasAttribute('src')).toBe(false);
+    expect(frame.classList.contains('hidden')).toBe(true);
+    expect(dom.window.document.querySelector('#pdfFallback')!.classList.contains('hidden')).toBe(false);
+    expect(dom.window.document.querySelector('#lnkPdf')!.getAttribute('download')).toBe('sun-city-bin-labels.pdf');
+    expect(downloads).toEqual([]);
+    (dom.window.document.querySelector('#btnTest') as HTMLButtonElement).click();
+    expect(downloads).toEqual(['sun-city-print-test.pdf']);
+    expect(opened).toBe(0);
+    expect(frame.hasAttribute('src')).toBe(false);
+    expect(dom.window.document.querySelector('#lnkPdf')!.getAttribute('download')).toBe('sun-city-print-test.pdf');
+    bridge.invalidate();
+    expect(dom.window.document.querySelector('#pdfFallback')!.classList.contains('hidden')).toBe(true);
     dom.window.close();
   });
 });
