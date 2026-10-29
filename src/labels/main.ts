@@ -203,6 +203,17 @@ document.querySelector('#find')!.addEventListener('click',async()=>{
 frame.onload=()=>{
   try {
     const w=child(), doc=w.document;
+    // Never offer stale exports after edits, additions, or selection changes.
+    const invalidate = () => {
+      for (const id of ['download','csv','xlsx']) (document.querySelector('#'+id) as HTMLButtonElement).disabled = true;
+    };
+    doc.addEventListener('input', invalidate, true);
+    doc.addEventListener('change', invalidate, true);
+    doc.addEventListener('click', event => {
+      const target = event.target as HTMLElement;
+      if (target.closest('button') && !target.closest('#btnTest')) invalidate();
+    }, true);
+    for (const id of ['all','none','refresh']) document.querySelector('#'+id)!.addEventListener('click',invalidate);
     const style=doc.createElement('style');
     style.textContent='#btnGen,#btnDlCsv,#btnDlXlsx,#bulkInvalid,button[data-act=newid],button[data-act=keep],button[data-act=replace],#exportWhy,#stale{display:none!important}';
     doc.head.append(style);
