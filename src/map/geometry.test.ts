@@ -8,6 +8,7 @@ import {
   aisleWidth,
   buildWalls,
   collideMove,
+  collisionSegments,
   fitCount,
   insideAnyZone,
   placeFromWall,
@@ -249,6 +250,17 @@ describe("walls, walking, fit", () => {
     const segs = [{ a: { x: 0, y: 0 }, b: { x: 0, y: 100 } }];
     const p = collideMove({ x: 20, y: 50 }, { x: -20, y: 50 }, 9, segs);
     expect(p.x).toBeGreaterThan(0);
+  });
+  it('blocks the solid warehouse west wall while permitting passage through door 35', () => {
+    const { walls } = buildWalls(DEMO_ZONES, DEMO_OPENINGS);
+    const segments = collisionSegments(walls, DEMO_SHELVES);
+    const door = DEMO_OPENINGS.find(opening => opening.tag === '35')!;
+    expect(door).toMatchObject({ x1_in: 0, x2_in: 0, y1_in: 1021.5, y2_in: 1061.5 });
+    const center = (door.y1_in + door.y2_in) / 2;
+    const blocked = collideMove({ x: 20, y: 1000 }, { x: -20, y: 1000 }, 9, segments);
+    const throughDoor = collideMove({ x: 20, y: center }, { x: -20, y: center }, 9, segments);
+    expect(blocked.x).toBeGreaterThanOrEqual(9);
+    expect(throughDoor).toEqual({ x: -20, y: center });
   });
   it("fit check by bounding box", () => {
     // best of six orientations: 15/1.25 x 7/1 x 18/1.25 -> 12 x 7 x 14

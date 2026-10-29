@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SceneShelf } from "../src/map/scene/Debug";
 import type { Layout } from "../src/shared/contract";
+import { pointInPolygon } from "../src/map/geometry";
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -276,22 +277,68 @@ async function orbitAndWalk(page: Page, w: number) {
   expect(cam0.position[1]).toBeCloseTo(66, 0); // eye height 5'-6"
   expect(cam0.position[0]).toBeGreaterThan(60); // starts 5' in front of A1, not inside it
   await shot(page, `walk-${w}`);
-  // walk west into the wall: collision keeps the camera inside (X >= radius)
-  for (let i = 0; i < 4; i++) {
-    await page.keyboard.down("KeyA");
+  // A1's front is x=24 at z=912. Walking straight west must stop one body radius away.
+  // The former diagonal path could slide south through door 35 on slower CI machines.
+  try {
     await page.keyboard.down("KeyW");
-    await page.waitForTimeout(400);
-    await page.keyboard.up("KeyA");
+    await expect.poll(async () => (await page.evaluate(() => window.__mapDebug.camera())).position[0], { timeout: 15_000 }).toBeLessThan(33.1);
+    await page.waitForTimeout(250); // keep pushing against the shelf, after actually reaching it
+  } finally {
     await page.keyboard.up("KeyW");
   }
+  const atShelf = await page.evaluate(() => window.__mapDebug.camera());
+  expect(atShelf.position[0]).toBeCloseTo(33.01, 1);
+  expect(atShelf.position[2]).toBeCloseTo(cam0.position[2], 1);
+  // The east wall is solid at z=912 (door 40 ends at z=898). Run backward into it.
+  try {
+    await page.keyboard.down("ShiftLeft");
+    await page.keyboard.down("KeyS");
+    await expect.poll(async () => (await page.evaluate(() => window.__mapDebug.camera())).position[0], { timeout: 15_000 }).toBeGreaterThan(473);
+    await page.waitForTimeout(250);
+  } finally {
+    await page.keyboard.up("KeyS");
+    await page.keyboard.up("ShiftLeft");
+  }
   const cam1 = await page.evaluate(() => window.__mapDebug.camera());
-  expect(cam1.position[0]).toBeGreaterThan(8);
-  expect(cam1.position[0]).not.toBe(cam0.position[0]); // it moved
+  expect(cam1.position[0]).toBeCloseTo(483 - 9.01, 1);
+  expect(cam1.position[2]).toBeCloseTo(cam0.position[2], 1);
+  expect(cam1.position[1]).toBeCloseTo(66, 0);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("view-orbit")).toHaveAttribute("aria-checked", "true");
 }
 
 test.describe("navigation (desktop)", () => {
+  test("plan-to-walk initializes the active camera and layout refreshes preserve its position", async ({ page }) => {
+    await open(page);
+    await expect(page.getByTestId('view-plan')).toHaveAttribute('aria-checked', 'true');
+    await selectShelfInTree(page, 'WAREHOUSE 126', 'A1');
+    await page.getByTestId('view-walk').click();
+    await expect.poll(async () => (await page.evaluate(() => window.__mapDebug.camera())).position.map(value => Math.round(value)))
+      .toEqual([84, 66, 912]);
+    try {
+      await page.keyboard.down('KeyS');
+      await expect.poll(async () => (await page.evaluate(() => window.__mapDebug.camera())).position[0]).toBeGreaterThan(108);
+    } finally { await page.keyboard.up('KeyS'); }
+    const before = await page.evaluate(() => window.__mapDebug.camera());
+    // Another employee changes inventory and unrelated geometry; focus refreshes the live layout.
+    await page.evaluate(() => {
+      const state = window.__mock.getDB();
+      const stock = state.stock.find(item => item.active)!;
+      const otherShelf = state.shelves.find(item => item.name === 'A2')!;
+      const changes = [
+        window.__mock.handleMockRequest('POST', '/api/stock/adjust', { role: 'editor', body: { part_id: stock.part_id, slot_id: stock.slot_id, delta: 1 } }),
+        window.__mock.handleMockRequest('PATCH', `/api/shelves/${otherShelf.shelf_id}`, { role: 'editor', body: { version: otherShelf.version, name: 'A2 refreshed' } }),
+      ];
+      for (const change of changes) if (change.status >= 400) throw new Error(JSON.stringify(change.body));
+      window.dispatchEvent(new Event('focus'));
+    });
+    await expect.poll(async () => page.evaluate(() => window.__mapDebug.shelves().some(shelf => shelf.name === 'A2 refreshed'))).toBe(true);
+    const after = await page.evaluate(() => window.__mapDebug.camera());
+    expect(after.view).toBe('walk');
+    expect(after.type).toBe('PerspectiveCamera');
+    expect(after.position.map(value => Math.round(value * 1000))).toEqual(before.position.map(value => Math.round(value * 1000)));
+  });
+
   test("3D orbit and walk @1280", async ({ page }) => {
     await orbitAndWalk(page, 1280);
     await expect(page.getByTestId("joystick")).toHaveCount(0); // mouse: no joystick
@@ -304,13 +351,23 @@ test.describe("navigation (phone, touch)", () => {
     await open(page);
     await page.getByTestId("view-walk").click();
     await expect(page.getByTestId("joystick")).toBeVisible();
+    const rooms = (await db(page)).zones;
+    await expect.poll(async () => {
+      const position = await page.evaluate(() => window.__mapDebug.camera().position);
+      return rooms.some(room => pointInPolygon({ x: position[0], y: position[2] }, room.polygon_in));
+    }).toBe(true);
     const j = (await page.getByTestId("joystick").boundingBox())!;
     const before = await page.evaluate(() => window.__mapDebug.camera().position);
     await page.mouse.move(j.x + j.width / 2, j.y + j.height / 2);
     await page.mouse.down();
-    await page.mouse.move(j.x + j.width / 2, j.y + 4, { steps: 3 }); // push forward
-    await page.waitForTimeout(800);
-    await page.mouse.up();
+    try {
+      // The initial plan target is in STORAGE 125 near its north wall. Back into its clear aisle.
+      await page.mouse.move(j.x + j.width / 2, j.y + j.height - 4, { steps: 3 });
+      await expect.poll(async () => {
+        const position = await page.evaluate(() => window.__mapDebug.camera().position);
+        return Math.hypot(position[0] - before[0], position[2] - before[2]);
+      }).toBeGreaterThan(10);
+    } finally { await page.mouse.up(); }
     const after = await page.evaluate(() => window.__mapDebug.camera().position);
     expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(10);
     await page.keyboard.press("Escape");

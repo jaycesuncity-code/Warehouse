@@ -7,8 +7,9 @@ This file describes the current integration source. The emergency checkpoint at 
 - `5d4fcc8fb95b76a9630b7d4a176323980956bce9`: recovered lockfile, lint config, Pages API, authentication and migrations.
 - `29098668feba65a8564f30a07632066ac3b93ef2`: integrated inventory, packouts, employee UI, map/scanner fixes, labels, security, retry receipts and scoped D1 performance. The complete uploaded tree matched the tested local tree.
 - `8e2f30ae2a0f9915bce3ab76ba957ea4efdfd1b9`: fixed a real workerd authentication incompatibility, retained retry receipts after incomplete responses, and added a populated-schema migration test.
+- `927d683759fe7d97e8d3632085598af8679b0a7e`: added the compiled-worker/D1/browser CI gate, final UI retry/PDF/import fixes, and deployment guidance. Remote CI passed all earlier gates but exposed two walking-navigation assertions; the follow-up below addresses their cause.
 
-Subsequent source in this checkpoint adds the real compiled-worker/D1/browser gate, final UI retry/PDF/import fixes, updated deployment guidance and CI coverage.
+The current follow-up fixes first-entry plan-to-walk camera initialization and adds a regression that preserves the walking position across stock and layout refreshes. Collision tests now target known solid shelf/wall surfaces and separately verify passage through an actual doorway.
 
 ## Implemented workflows
 
@@ -22,7 +23,7 @@ Packouts use existing stock rows and Packout storage locations. Replenishment tr
 
 ## Verified source evidence
 
-- Unit/integration tests: **263 passed in 21 files**.
+- Unit/integration tests: **264 passed in 21 files**.
 - TypeScript: passed.
 - ESLint: passed with zero errors or warnings.
 - Frontend build: passed, seven routes.
@@ -32,10 +33,12 @@ Packouts use existing stock rows and Packout storage locations. Replenishment tr
 - Production browser checks cover real part registration/reload/PDF, scan/search, employee custody, mobile WebGL map, return reconciliation and rejection of URL/stored demo-mode overrides.
 - Populated upgrade test preserves catalog IDs, inactive identities, stock/par/dimensions, timestamps, history and foreign-key relationships through the committed migration sequence.
 - Label-focused suite: 21 unit tests; 11 label/packout browser cases passed before the final combined run. System Poppler renders and pixel QR decoding verified Letter pages, skipped positions and exact IDs.
-- Full final Playwright run: **74 passed in 4.3 minutes**, including desktop and mobile screenshots, camera/keyboard scanning, geometry edits, imports, labels and packouts. The complete log is generated at `artifacts/release-e2e.log`.
+- The initial full local Playwright run at `927d683` passed **74 tests in 4.3 minutes**. Its remote run passed 72 and failed two walking checks. The current suite contains **75 browser tests**, including the new active-camera/refresh regression; the complete result for the proposed commit is recorded in PR #1.
 - GitHub Actions results are recorded in PR #1. Check the run for the exact proposed commit before approving a release.
 
 A runtime test caught a problem that unit tests did not: workerd rejected Fetch's `redirect: 'error'` option. Certificate retrieval now uses `manual` and rejects redirect responses without following them. Do not remove this check or replace real signed-token tests with an authentication bypass.
+
+The remote walking traces showed that a timed diagonal path could pass through door 35, making a blanket positive-X assertion incorrect. They also exposed a genuine plan-to-walk race: the controller initialized the previous orthographic camera before the perspective camera became active. The new regression reproduced the out-of-bounds start before the fix. Initialization now follows the active camera object, while inventory/layout changes do not restart a walk.
 
 ## Remaining environment release gates
 

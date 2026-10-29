@@ -55,7 +55,9 @@ function Walker() {
     pitch.current = -0.08;
     rig.walkPos = camera.position.clone();
   });
-  useEffect(() => { initializePosition(); }, []);
+  // Plan -> walk replaces the active orthographic camera after this component mounts.
+  // Initialize that replacement too; inventory/layout refreshes must not reset a walk in progress.
+  useEffect(() => { initializePosition(); }, [camera]);
 
   useEffect(() => {
     const dom = gl.domElement;
