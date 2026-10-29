@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-surface font-sans text-ink antialiased;
+    margin: 0;
+  }
+  button,
+  [role='button'],
+  a {
+    touch-action: manipulation;
+  }
+  /* Grid children may shrink below their content, so wide things (shelf drawings, long names) scroll or wrap
+     instead of pushing the page wider than the phone. */
+  main.grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grid > * {
+    min-width: 0;
+  }
+  /* Visible keyboard focus on light and dark backgrounds (dark ring + gold halo). */
+  :focus-visible {
+    outline: 3px solid #262626;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #c9a84c;
+  }
+  svg [role='button']:focus-visible {
+    outline: none;
+  }
+  .sr-only-input {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-touch select-none items-center justify-center gap-2 rounded-xl px-5 text-lg font-bold leading-tight transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-primary {
+    @apply bg-maroon text-white hover:bg-maroon-light active:bg-maroon-dark;
+  }
+  .btn-gold {
+    @apply bg-gold text-ink hover:bg-gold-dark hover:text-white;
+  }
+  .btn-secondary {
+    @apply border-2 border-maroon bg-white text-maroon hover:bg-maroon-tint;
+  }
+  .btn-neutral {
+    @apply border-2 border-surface-line bg-white text-ink hover:bg-surface;
+  }
+  .btn-danger {
+    @apply bg-red-700 text-white hover:bg-red-800;
+  }
+  .card {
+    @apply rounded-2xl border border-surface-line bg-white p-4 shadow-sm;
+  }
+  .label-xs {
+    @apply text-xs font-bold uppercase tracking-wide text-ink-soft;
+  }
+  .pulse-dot {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sc-pulse 1.6s ease-out infinite;
+  }
+  @keyframes sc-pulse {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(2.6);
+      opacity: 0;
+    }
+  }
+  .scan-line {
+    animation: sc-scan 2.2s ease-in-out infinite alternate;
+  }
+  @keyframes sc-scan {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
+}
