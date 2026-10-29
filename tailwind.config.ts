@@ -1,13 +1,13 @@
 import type { Config } from 'tailwindcss';
 
-// Sun City brand: maroon #6B1A2C, gold #C9A84C, dark gray text, light gray surfaces.
+// Sun City brand: maroon #892634, gold #C9A84C, dark gray text, light gray surfaces.
 export default {
   content: ['./index.html', './warehouse/*.html', './employee/*.html', './map/*.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        maroon: { DEFAULT: '#6B1A2C', dark: '#4E1220', light: '#8A2A40', tint: '#F6E9EC' },
-        gold: { DEFAULT: '#C9A84C', dark: '#9C7F2B', tint: '#FBF5E0' },
+        maroon: { DEFAULT: '#892634', dark: '#4E1220', light: '#8A2A40', tint: '#F6E9EC' },
+        gold: { light: '#E8D79C', DEFAULT: '#C9A84C', dark: '#9C7F2B', tint: '#FBF5E0' },
         ink: { DEFAULT: '#262626', soft: '#4A4A4A' },
         surface: { DEFAULT: '#F2F2F2', card: '#FFFFFF', line: '#D4D4D4' },
       },

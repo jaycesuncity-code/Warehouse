@@ -1,7 +1,7 @@
 import type { DeleteLocationRequest, MoveLocationRequest } from '../../contract';
 import { notFound, slotOccupied, validation } from '../errors';
 import { buildPart, findPart, findShelf, findSlot, activeStockInSlot, slotCode, stockFor } from '../format';
-import { requireInt } from '../rules';
+import { requireInt, requireVersion } from '../rules';
 import type { StockRec } from '../state';
 import type { Tx } from '../tx';
 import { ok, type Handler } from '../types';
@@ -139,6 +139,7 @@ export const moveLocation: Handler = (c) => {
 
   const ev = c.tx.finish(mode, 'location', `${part.part_id}|${toSlot.slot_id}`);
   return ok({
+    affected_shelf_ids: [...new Set([toSlot.shelf_id, ...(fromId ? [findSlot(c.state, fromId)!.shelf_id] : [])])],
     event_id: ev.event_id,
     part: buildPart(c.state, part, c.role),
     ...(displaced ? { displaced_parts: displaced } : {}),
@@ -154,5 +155,17 @@ export const deleteLocation: Handler = (c) => {
   if (!row || !row.active) throw notFound('That part in that slot');
   vacate(c.tx, row);
   const ev = c.tx.finish('remove', 'location', `${part.part_id}|${row.slot_id}`);
-  return ok({ event_id: ev.event_id, part: buildPart(c.state, part, c.role) });
+  return ok({ affected_shelf_ids: [findSlot(c.state, row.slot_id)!.shelf_id], event_id: ev.event_id, part: buildPart(c.state, part, c.role) });
+};
+
+export const patchLocation: Handler = c => {
+ const b = c.body ?? {};
+ const part = findPart(c.state, String(b.part_id ?? ''));
+ const row = stockFor(c.state, String(b.part_id ?? ''), String(b.slot_id ?? ''));
+ if (!part || !row?.active) throw notFound('That location');
+ requireVersion(b.version, row, () => buildPart(c.state, part, c.role).locations.find(l => l.slot_id === row.slot_id));
+ const par = requireInt(b.par_qty, 'par_qty', {min:0});
+ c.tx.update('stock', row, r => {r.par_qty = par;});
+ const ev = c.tx.finish('par', 'location', `${part.part_id}|${row.slot_id}`);
+ return ok({event_id:ev.event_id, part:buildPart(c.state,part,c.role), affected_shelf_ids:[findSlot(c.state,row.slot_id)!.shelf_id]});
 };

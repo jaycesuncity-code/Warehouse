@@ -50,6 +50,11 @@ function App() {
           title="Employee version"
           text="Look up a part, its price and where it is."
         />
+        <nav aria-label="Warehouse tools" className="grid gap-2 sm:grid-cols-3">
+          <a href="/map/" className="btn btn-secondary">Warehouse map</a>
+          <a href="/labels/" className="btn btn-secondary">Add Parts to List</a>
+          <a href="/packouts/" className="btn btn-secondary">Packouts &amp; kits</a>
+        </nav>
         <p className="mt-2 text-center text-sm text-ink-soft">
           Internal use only · Sun City Plumbing &amp; Heating, Inc.
         </p>

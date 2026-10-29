@@ -5,6 +5,7 @@ import { activeStockInSlot, buildSlot, findShelf, findSlot } from '../format';
 import { assertSlotFits, optionalLength, requireInt, requireVersion } from '../rules';
 import type { MockState, SlotRec } from '../state';
 import { ok, type Handler } from '../types';
+import { readNullableText } from '../input';
 
 const BIN_TYPES: BinType[] = ['bin', 'box', 'tote', 'loose', 'drawer'];
 
@@ -18,7 +19,7 @@ function readBin(b: Partial<CreateSlotRequest & PatchSlotRequest>): Partial<Slot
   for (const k of ['bin_width_in', 'bin_height_in', 'bin_depth_in'] as const) {
     if (b[k] !== undefined) out[k] = optionalLength(b[k], k);
   }
-  if (b.bin_color !== undefined) out.bin_color = b.bin_color === null ? null : String(b.bin_color);
+  if (b.bin_color !== undefined) out.bin_color = readNullableText(b.bin_color, 'bin_color', 80);
   return out;
 }
 
@@ -74,7 +75,7 @@ export const createSlot: Handler = (c) => {
   };
   c.tx.insert('slots', slot);
   const ev = c.tx.finish('create', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) }, 201);
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) }, 201);
 };
 
 export const patchSlot: Handler = (c) => {
@@ -98,7 +99,7 @@ export const patchSlot: Handler = (c) => {
   }
   c.tx.update('slots', slot, (s) => Object.assign(s, next));
   const ev = c.tx.finish('edit', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) });
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) });
 };
 
 export const resizeSlot: Handler = (c) => {
@@ -110,6 +111,8 @@ export const resizeSlot: Handler = (c) => {
   requireVersion(b.version, slot, () => buildSlot(c.state, slot), 'This slot');
   const width = requireInt(b.width_span, 'width_span', { min: 1 });
   const height = requireInt(b.height_span, 'height_span', { min: 1 });
+  if (b.anchor !== undefined && !['bottom-left', 'bottom-right', 'top-left', 'top-right'].includes(b.anchor))
+    throw validation({ anchor: 'Choose a supported resize corner.' });
   let rect = resizeRect(rectOf(slot), width, height, b.anchor ?? 'bottom-left');
   if (b.col_start !== undefined)
     rect = { ...rect, col_start: requireInt(b.col_start, 'col_start', { min: 1 }) };
@@ -118,7 +121,7 @@ export const resizeSlot: Handler = (c) => {
   assertSlotFits(c.state, shelf, rect, slot.slot_id);
   c.tx.update('slots', slot, (s) => Object.assign(s, rect));
   const ev = c.tx.finish('resize', 'slot', slot.slot_id);
-  return ok({ event_id: ev.event_id, slot: buildSlot(c.state, slot) });
+  return ok({ event_id: ev.event_id, shelf_id: slot.shelf_id, slot: buildSlot(c.state, slot) });
 };
 
 export const deleteSlot: Handler = (c) => {

@@ -1,3 +1,4 @@
+import { CommitLengthInput } from './CommitLengthInput';
 import { useEffect, useId, useState } from 'react';
 import { formatFtIn, formatInches, parseLengthDetailed, type LengthUnit } from '../units';
 
@@ -14,7 +15,7 @@ interface Props {
 }
 
 /** Type 40'-3", 40 3, 483 ... and see the parsed value next to the box. Stores inches. */
-export function FtInInput({
+function ChangeLengthInput({
   label,
   value,
   onChange,
@@ -79,3 +80,5 @@ export function FtInInput({
     </div>
   );
 }
+
+export function FtInInput(props: Props | Parameters<typeof CommitLengthInput>[0]) { return 'onCommit' in props ? <CommitLengthInput {...props} /> : <ChangeLengthInput {...props} />; }

@@ -24,21 +24,23 @@ const shelfSlot = (page: Page, shelf: string, code: string) =>
     [shelf, code],
   );
 
-test.describe('home and placeholders', () => {
-  test('home has two big buttons; employee and map are placeholders', async ({ page }) => {
+test.describe('home and connected navigation', () => {
+  test('home opens employee inventory, scanner, and the working map', async ({ page }) => {
     await page.goto('/?latency=0');
     await expect(page.getByTestId('btn-warehouse')).toHaveText(/Warehouse version/);
     await expect(page.getByTestId('btn-employee')).toHaveText(/Employee version/);
     await expect(page.getByTestId('demo-badge')).toBeVisible();
     await page.getByTestId('btn-employee').click();
-    await expect(page.getByTestId('employee-coming-soon')).toContainText('Coming soon');
+    await expect(page.getByText('Employee inventory', { exact: true })).toBeVisible();
     await page.goto('/?latency=0');
     await page.getByTestId('btn-warehouse').click();
     await expect(page.getByTestId('scan-screen')).toBeVisible();
     await expect(page.getByTestId('tab-scan')).toBeVisible();
     await page.getByTestId('tab-map').click();
-    await expect(page.getByTestId('map-coming-soon')).toContainText('3D warehouse map: coming soon');
-    await page.getByRole('link', { name: 'Back to the Warehouse app' }).click();
+    await expect(page.getByTestId('map-canvas')).toBeVisible();
+    await expect(page.getByTestId('map-search')).toBeVisible();
+    await page.getByRole('link', { name: 'Back to home' }).click();
+    await page.getByTestId('btn-warehouse').click();
     await expect(page.getByTestId('scan-screen')).toBeVisible();
   });
 });
@@ -306,9 +308,12 @@ test.describe('where is it', () => {
     expect(url.pathname).toBe('/map/');
     expect(url.searchParams.get('shelf')).toMatch(/^shf-[2-9a-hj-km-np-z]{8}$/);
     expect(url.searchParams.get('slot')).toMatch(/^slt-[2-9a-hj-km-np-z]{8}$/);
-    // the deep link lands on the map placeholder with the same target
+    // The real map opens the same slot and part from the scanner route.
     await page.getByTestId('open-3d').click();
-    await expect(page.getByTestId('map-target')).toContainText(url.searchParams.get('shelf')!);
+    await expect(page.getByTestId('front-view')).toBeVisible();
+    await expect(page.getByTestId('part-card-name')).toContainText('Copper 90°');
+    await page.getByTestId('mobile-tab-inspector').click();
+    await expect(page.getByTestId('inspector-title')).toHaveText('B1-G-4');
     expect(id).toBeTruthy();
   });
 

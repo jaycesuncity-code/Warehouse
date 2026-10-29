@@ -173,6 +173,12 @@ export function WhereScreen({ partId }: { partId: string }) {
                 </p>
               ) : null}
 
+              {loc.issued_kit_id && (
+                <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm" data-testid="issued-kit-note">
+                  Issued in a kit. Use the return count to reconcile these parts.
+                  <a href="/packouts/" className="ml-1 font-bold text-maroon underline">Open packouts →</a>
+                </p>
+              )}
               {loc.co_located_parts.length ? (
                 <p className="text-base" data-testid="shares-slot">
                   <strong>Shares this slot with:</strong>{' '}
@@ -210,7 +216,7 @@ export function WhereScreen({ partId }: { partId: string }) {
               </div>
 
               <a
-                href={`/map/?shelf=${encodeURIComponent(loc.shelf_id)}&slot=${encodeURIComponent(loc.slot_id)}`}
+                href={`/map/?shelf=${encodeURIComponent(loc.shelf_id)}&slot=${encodeURIComponent(loc.slot_id)}&part=${encodeURIComponent(part.part_id)}`}
                 data-testid="open-3d"
                 className="inline-flex min-h-touch items-center text-lg font-bold text-maroon underline"
               >
@@ -218,7 +224,7 @@ export function WhereScreen({ partId }: { partId: string }) {
               </a>
 
               <div className="grid grid-cols-2 gap-2">
-                {canEdit ? (
+                {canEdit && !loc.issued_kit_id ? (
                   <>
                     <LinkButton href={act('move', loc.slot_id)} data-testid="btn-move">
                       Move

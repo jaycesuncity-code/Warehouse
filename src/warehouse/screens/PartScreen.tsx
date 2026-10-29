@@ -142,6 +142,11 @@ export function PartScreen({ partId }: { partId: string }) {
             ) : null}
           </p>
 
+          {(part.issued_total ?? 0) > 0 && (
+            <p className="rounded-lg bg-amber-50 p-2 text-sm" data-testid="available-stock">
+              <strong>{part.available_total ?? part.on_hand_total - (part.issued_total ?? 0)}</strong> available in the warehouse · <strong>{part.issued_total}</strong> in issued kits.
+            </p>
+          )}
           {part.locations.length > 1 ? (
             <div role="radiogroup" aria-label="Which place are you counting?" className="grid gap-2">
               <p className="label-xs">
@@ -205,7 +210,13 @@ export function PartScreen({ partId }: { partId: string }) {
         ) : null}
 
         {/* 5. Quick adjust */}
-        {location ? (
+        {location?.issued_kit_id ? (
+          <section className="card border border-amber-300 bg-amber-50" data-testid="issued-kit-note">
+            <h2 className="text-lg font-extrabold">Issued in a packout kit</h2>
+            <p className="mt-1">Count the remaining parts when this kit returns. Its contents stay in inventory until the return is reconciled.</p>
+            <a href="/packouts/" className="mt-2 inline-flex min-h-touch items-center font-bold text-maroon underline">Open packouts →</a>
+          </section>
+        ) : location ? (
           <QtyAdjust
             key={location.slot_id}
             part={part}

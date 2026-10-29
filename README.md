@@ -1,86 +1,86 @@
-# Sun City Parts: home + Warehouse scan app
+# Sun City Warehouse
 
-Internal parts and warehouse app for Sun City Plumbing & Heating, Inc. One Cloudflare Pages project, one Vite multi-page build
-(React + TypeScript + Tailwind). This repo holds workstream B: the repo skeleton, the **home page**, the **Warehouse scan app**,
-the **Employee placeholder**, and the shared client library with an in-browser **mock API** that implements the whole Shared Contract v2.
+Sun City Plumbing & Heating's inventory, QR scanner, 3D warehouse map, labels, employee inventory and packout application. One React/TypeScript frontend, one shared API contract, one Cloudflare Pages Function and one relational D1 stock ledger.
 
-| Page                           | Path                                                    | Status                                                     |
-| ------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- |
-| Home (two big buttons)         | `/`                                                     | done                                                       |
-| Warehouse scan app             | `/warehouse/` (`#/scan`, `#/search`, `#/part/<id>` ...) | done, runs on the mock API                                 |
-| Demo labels (QR codes to scan) | `/warehouse/demo-labels.html`                           | done                                                       |
-| Employee version               | `/employee/`                                            | "coming soon" placeholder                                  |
-| 3D map                         | `/map/`                                                 | placeholder until workstream C replaces `src/map/main.tsx` |
-| Label generator                | `/labels/`                                              | the existing HTML is moved here later, untouched           |
+## Application routes
 
-## Run it
+| Route | Function |
+| --- | --- |
+| `/` | Home and navigation |
+| `/warehouse/` | Camera/keyboard QR scanning, part search, counts, locations, moves, par levels and history |
+| `/map/` | Interactive floor/shelf/front views, shelves, bins, dimensions, part assignments, search and geometry editing |
+| `/labels/` | Manual/paste/CSV/Excel staging, review, selected registration, existing-part reprints, PDF preview/download/print and export |
+| `/packouts/` | Employees, kit staging, replenishment, issue, counted returns, consumption reconciliation and audit/undo |
+| `/employee/` | Employee part lookup/scanning and their issued kits |
+| `/warehouse/demo-labels.html` | Clearly identified demonstration QR labels; these are not real inventory |
+
+The original standalone label generator remains unchanged at [labels/bin-label-generator.html](labels/bin-label-generator.html). Historical workstream ZIPs and handoffs remain available as project history; this README and the implementation checkpoint describe the integrated source.
+
+## Install and verify
+
+Use Node 22 (CI uses Node 22) and the committed npm lockfile.
 
 ```bash
-npm install
-npm run dev            # http://localhost:5173  (mock API, "DEMO DATA" badge)
-npm run typecheck && npm test && npm run build
-npm run test:e2e       # builds, serves the build, runs Playwright (needs a Chromium: npx playwright install chromium)
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run build:functions
+npx playwright install --with-deps chromium
+npm run test:live -- --browser
+npm run test:e2e
 ```
 
-Scripts: `dev`, `dev:lan`, `dev:https`, `build`, `preview`, `typecheck`, `test`, `test:e2e`, `lint`, `format`.
+`test:live` compiles and runs the actual Pages Function in workerd/Miniflare against a new isolated D1 database with all migrations. Authentication uses generated, signed test JWTs and a fixture certificate service; the application has no authentication bypass. `--browser` also exercises the production frontend against this API. It requires a preceding `npm run build`.
 
-### Demo tools (mock mode)
+`test:e2e` builds an explicit demo frontend under `artifacts/e2e-dist`, leaving the production `dist` separate. Tests exercise desktop/mobile scanner, map, labels and packout workflows. Standard Playwright Chromium is the default. A compatible preinstalled Chromium can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`; `E2E_PORT` and `E2E_BUILD_DIR` support isolated runs.
 
-- Tap the **DEMO DATA** badge: switch role (viewer / editor / admin) and **Reset demo data**.
-- Scan screen: **Simulate a scan** picker, and a link to `/warehouse/demo-labels.html`.
-- Part screen: "Demo: make a version conflict" changes a count behind the screen's back.
-- `?latency=0` in the URL makes the mock answer instantly. `window.__sc` exposes the API for poking around in the console.
-- State lives in `localStorage` (the app still works if storage is blocked; state then lives in memory for the page).
+The single [integration workflow](.github/workflows/integration-checks.yml) verifies PRs into main, pushes to main, and manual runs. Newer runs cancel superseded runs on the same ref. It does not deploy or migrate a remote database.
 
-## Testing the camera on a phone
+## Development and real inventory
 
-Browsers only allow the camera on **HTTPS** (or `localhost`). Two ways:
-
-1. **LAN with a self-signed certificate:** `npm run dev:https`, open the `https://<your-PC-ip>:5173/warehouse/` address Vite prints on the phone,
-   accept the certificate warning. Open `/warehouse/demo-labels.html` on a monitor and scan it.
-2. **Cloudflare Pages preview deploy** (real HTTPS, no warnings): see below.
-
-Handheld (keyboard-wedge) scanners need nothing: the scan screen always listens for a label followed by Enter.
-QR decoding uses the browser's `BarcodeDetector` when it exists, with the bundled `jsqr` decoder as fallback (Chrome on desktop/Linux, iOS Safari).
-
-## Deploy to Cloudflare Pages
-
-- Build command `npm run build`, output directory `dist` (also set in `wrangler.toml`).
-- Put Cloudflare Access in front of the whole site (staff only).
-- Preview: `npm run build && npx wrangler pages deploy dist`.
-
-## Going live (real API instead of the mock)
-
-Everything talks to one client, `src/shared/api.ts`. `src/shared/config.ts` holds `DEFAULT_MODE` (`'mock'`) and `API_BASE` (`/api`).
-
-- Try it without changing code: add `?mode=live` to any page URL (remembered for the tab; `?mode=mock` switches back).
-- For everyone: set `DEFAULT_MODE = 'live'`. The "DEMO DATA" badge and demo tools disappear; roles come from `GET /api/me`.
-
-## Layout of the repo
-
-```
-index.html  warehouse/  employee/  map/        page shells (Vite inputs)
-src/home  src/warehouse  src/employee  src/map  page code (B owns all but map)
-src/shared/contract.ts   every Shared Contract v2 shape, error and endpoint
-src/shared/api.ts        the one client (same methods in mock and live)
-src/shared/config.ts     MODE / API_BASE
-src/shared/units.ts      ft-in parse/format, survey-sheet <-> map, shelf (u,v) -> map, slot rectangles
-src/shared/grid.ts       slot overlap / resize / free-size helpers (used by the mock rules and the UI)
-src/shared/ids.ts        ID regexes, isPartId()
-src/shared/mock/         in-browser mock: one file per endpoint group, rules.ts, state.ts, demo-data.ts
-src/shared/ui/           header, buttons, toasts with Undo, chips, modal, ft-in input, session/role, DEMO badge
-functions/ migrations/ seed/ docs/   workstream A (backend)
-labels/                  the existing label generator goes here later
-e2e/                     Playwright specs;  screenshots/  captured at 390x844 and 1280x800
+```bash
+npm run dev
 ```
 
-### For workstream C (3D map)
+Development uses explicitly marked **DEMO DATA**, saved in browser localStorage. Demo roles and resets are available through the demo badge. They never modify D1.
 
-Reuse `api`, `units`, `grid`, `contract` and `ui`. The mock already serves `GET /api/layout` (with ETag), shelf / slot create, patch,
-resize, duplicate and delete, zones and openings (admin to write), events and undo. Add mock endpoints as new files under `src/shared/mock/endpoints/` and register
-them in `router.ts`. Deep link from the scan app: `/map/?shelf=<shelf_id>&slot=<slot_id>`.
+A normal `npm run build` uses the authenticated live API at `/api`. An old browser preference or `?mode=mock` cannot switch that production build to demo inventory. Only a deliberate `VITE_DATA_MODE=mock` build enables demo overrides. Do not set that value in a real-inventory deployment. Failed live requests stay errors; they do not silently fall back to demo data.
 
-### Demo data
+For phone-camera development, use `npm run dev:https` on a trusted local network, or an authorized HTTPS preview. Camera scanning requires HTTPS or localhost. Keyboard-wedge scanners submit the same canonical part ID followed by Enter. Native BarcodeDetector has a bundled jsQR fallback.
 
-`src/shared/mock/demo-data.ts` is plain data: the zones and openings from contract section 9 (map inches), shelves A1, A2, B1, F1,
-46 slots, 26 parts with fixed IDs. Workstream A generates `seed/demo.sql` from it.
+## Inventory and kit accounting
+
+Canonical part IDs are issued or confirmed by the backend. QR payloads are exactly `part_id`. Registering or printing labels does not change stock, and generating labels never registers unselected rows.
+
+All quantities are stored in `stock` by part and storage slot. Shelves have Primary, Overstock or Packout location types. A kit uses an existing bin on a Packout shelf; create or select this staging location on the map first.
+
+- Replenishment transfers stock from another location to the kit.
+- Issue records employee custody and the issued quantities. It does not consume the contents.
+- Issued contents remain owned stock but are excluded from available warehouse quantity.
+- Return requires a count for every issued part, retains the remaining stock, and records the difference as consumption.
+- Generic stock/geometry edits cannot change or delete an issued kit's contents.
+- History and version-checked undo/redo use the shared transaction and audit model.
+
+Employee records support kit custody and inventory access. The app does not implement unrelated HR or attendance functions.
+
+## Persistence and security
+
+`functions/api/[[path]].ts` dispatches the canonical routes. The literal D1 runtime binding is **`warehouse-db`**, independent of the database display name.
+
+The live and demo transports share domain rules under `src/shared/mock/`; the historical directory name does not mean the live API uses an in-memory inventory. Live requests load relational data from D1 and commit changed rows, audit history and idempotency receipts in the same revision-guarded transaction.
+
+Access JWT signatures, issuer, audience and validity are checked on the server. Verified identity determines the viewer/editor/admin role. Viewers can read; editors manage inventory and kits; admins also manage building zones/openings and permitted conflict overrides. Frontend role controls are not the security boundary.
+
+See [security](docs/security.md), [database correctness and measured performance](docs/database-performance.md), and [label workflow/print verification](docs/labels.md).
+
+## Deployment and release status
+
+Cloudflare Pages build command: **`npm run build`**. Build output: **`dist`**. Pages Functions remain in the repository's `functions/` directory.
+
+The checked-in `wrangler.toml` is intentionally **local-only**. It does not opt into replacing the remote Pages project's dashboard bindings with an unverified configuration. Production database IDs, Access audience and role lists are not fabricated or committed.
+
+Read [deployment configuration and isolation](docs/deployment.md) and [the current implementation checkpoint](docs/implementation-checkpoint.md) before release. A merge, production deployment or production migration requires authorization. A green local suite alone does not verify the actual Cloudflare environment.
+
+Warehouse geometry is visibly **unverified** until field-checked. PDF dimensions and scanner roundtrips can be tested digitally; physical printer calibration still requires a real print at 100%/Actual Size.

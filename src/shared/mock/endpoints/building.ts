@@ -11,6 +11,7 @@ import {
 } from '../../contract';
 import { notFound, validation } from '../errors';
 import { requireNumber, requireString, requireVersion } from '../rules';
+import { readBoolean, readNullableText, readText } from '../input';
 import type { OpeningRec, ZoneRec } from '../state';
 import { ok, type Handler } from '../types';
 
@@ -53,13 +54,13 @@ export const createZone: Handler = (c) => {
   const zone: ZoneRec = {
     zone_id: c.tx.mint('zon'),
     name: requireString(b.name, 'name'),
-    room_no: b.room_no ?? null,
+    room_no: readNullableText(b.room_no, 'room_no'),
     polygon_in: polygon,
     open_edges: readOpenEdges(b.open_edges, polygon.length),
     wall_height_in:
       b.wall_height_in == null ? null : requireNumber(b.wall_height_in, 'wall_height_in', { positive: true }),
-    notes: b.notes ?? '',
-    verified: !!b.verified,
+    notes: readText(b.notes ?? '', 'notes'),
+    verified: readBoolean(b.verified, 'verified'),
     version: 1,
     active: true,
   };
@@ -74,7 +75,7 @@ export const patchZone: Handler = (c) => {
   requireVersion(b.version, zone, () => strip(zone), 'This zone');
   const next: Partial<ZoneRec> = {};
   if (b.name !== undefined) next.name = requireString(b.name, 'name');
-  if (b.room_no !== undefined) next.room_no = b.room_no;
+  if (b.room_no !== undefined) next.room_no = readNullableText(b.room_no, 'room_no');
   if (b.polygon_in !== undefined) next.polygon_in = readPolygon(b.polygon_in);
   if (b.open_edges !== undefined || b.polygon_in !== undefined) {
     next.open_edges = readOpenEdges(
@@ -87,8 +88,8 @@ export const patchZone: Handler = (c) => {
       b.wall_height_in === null
         ? null
         : requireNumber(b.wall_height_in, 'wall_height_in', { positive: true });
-  if (b.notes !== undefined) next.notes = b.notes;
-  if (b.verified !== undefined) next.verified = !!b.verified;
+  if (b.notes !== undefined) next.notes = readText(b.notes, 'notes');
+  if (b.verified !== undefined) next.verified = readBoolean(b.verified, 'verified');
   c.tx.update('zones', zone, (z) => Object.assign(z, next));
   const ev = c.tx.finish('edit', 'zone', zone.zone_id);
   return ok({ event_id: ev.event_id, zone: strip(zone) });
@@ -106,15 +107,17 @@ function readOpening(b: Partial<OpeningInput>, partial: boolean): Partial<Openin
     if (!partial || b[k] !== undefined) out[k] = requireNumber(b[k], k);
   }
   if (b.height_in !== undefined) out.height_in = requireNumber(b.height_in, 'height_in', { positive: true });
-  if (b.tag !== undefined) out.tag = b.tag;
-  if (b.zone_id !== undefined) out.zone_id = b.zone_id;
-  if (b.notes !== undefined) out.notes = b.notes;
-  if (b.verified !== undefined) out.verified = !!b.verified;
+  if (b.tag !== undefined) out.tag = readNullableText(b.tag, 'tag');
+  if (b.zone_id !== undefined) out.zone_id = readNullableText(b.zone_id, 'zone_id');
+  if (b.notes !== undefined) out.notes = readText(b.notes, 'notes');
+  if (b.verified !== undefined) out.verified = readBoolean(b.verified, 'verified');
   return out;
 }
 
 export const createOpening: Handler = (c) => {
   const f = readOpening(c.body ?? {}, false);
+  if (f.zone_id != null && !c.state.zones.some((zone) => zone.active && zone.zone_id === f.zone_id))
+    throw validation({ zone_id: 'Pick a zone that exists, or leave it unset.' });
   const opening: OpeningRec = {
     opening_id: c.tx.mint('opn'),
     kind: f.kind!,
@@ -141,6 +144,8 @@ export const patchOpening: Handler = (c) => {
   const b: Partial<PatchOpeningRequest> = c.body ?? {};
   requireVersion(b.version, opening, () => strip(opening), 'This opening');
   const next = readOpening(b, true);
+  if (next.zone_id != null && !c.state.zones.some((zone) => zone.active && zone.zone_id === next.zone_id))
+    throw validation({ zone_id: 'Pick a zone that exists, or leave it unset.' });
   c.tx.update('openings', opening, (o) => Object.assign(o, next));
   const ev = c.tx.finish('edit', 'opening', opening.opening_id);
   return ok({ event_id: ev.event_id, opening: strip(opening) });

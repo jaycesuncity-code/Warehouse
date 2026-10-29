@@ -1,10 +1,17 @@
-# Cloudflare Pages project config.
-# Workstream B leaves this as a stub; workstream A fills in the real D1 binding.
-name = "suncity-parts-app"
+# LOCAL DEVELOPMENT ONLY. The remote Pages project's existing dashboard
+# configuration remains authoritative until it has been inspected and verified.
+# Deliberately omit pages_build_output_dir: adding it opts this file into remote
+# Pages configuration and could replace the dashboard's real bindings with these
+# local test values. Remote Pages build command: npm run build; output: dist.
+# See docs/deployment.md before creating any deployable Wrangler configuration.
+name = "warehouse-local-test"
 compatibility_date = "2026-10-01"
-pages_build_output_dir = "dist"
 
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "suncity-parts"
-# database_id = "REPLACE_WITH_REAL_DATABASE_ID"
+# The API requires the exact runtime D1 binding name "warehouse-db".
+# A database's display name is a separate setting; "DB" is not an alias.
+[[d1_databases]]
+binding = "warehouse-db"
+database_name = "warehouse-local-test"
+database_id = "00000000-0000-0000-0000-000000000000"
+preview_database_id = "warehouse-db"
+migrations_dir = "migrations"

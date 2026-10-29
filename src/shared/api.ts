@@ -3,8 +3,13 @@
  * Every method mirrors one endpoint in contract section 7, returns typed data, and throws ApiError on 4xx/5xx
  * (including the 409 slot_occupied and version_conflict payloads).
  */
+import { mutationReceipt } from './retries';
 import { API_BASE, MODE } from './config';
 import type {
+  Employee,
+  Packout,
+  PackoutMutationResponse,
+  LocationPatch,
   AdjustStockRequest,
   AdjustStockResponse,
   ApiErrorBody,
@@ -70,6 +75,8 @@ export class ApiError extends Error {
     this.payload = payload as ApiErrorBody;
   }
 
+  get code() { return this.error; }
+  get body() { return this.payload; }
   is(code: ErrorCode): boolean {
     return this.error === code;
   }
@@ -87,7 +94,7 @@ export class ApiError extends Error {
   }
 }
 
-export const isApiError = (e: unknown): e is ApiError => e instanceof ApiError;
+export const isApiError = (e: unknown, code?: ApiError["error"]): e is ApiError => e instanceof ApiError && (code === undefined || e.error === code);
 
 // ---------------------------------------------------------------------------------------------
 // Live transport (Cloudflare Pages Functions)
@@ -95,27 +102,50 @@ export const isApiError = (e: unknown): e is ApiError => e instanceof ApiError;
 
 export const liveTransport: Transport = {
   async request(method, pathAndQuery, opts = {}) {
-    let res: Response;
-    try {
-      res = await fetch(pathAndQuery, {
-        method,
-        credentials: 'same-origin',
-        headers: {
-          Accept: 'application/json',
-          ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-          ...opts.headers,
-        },
-        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      });
-    } catch {
-      throw new ApiError(0, { error: 'network', message: "Can't reach the server. Check your connection." });
+    const bodyText = opts.body === undefined ? undefined : JSON.stringify(opts.body);
+    const receipt = method !== 'GET' && !opts.headers?.['Idempotency-Key']
+      ? await mutationReceipt(method, pathAndQuery, bodyText) : null;
+    let res: Response | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        res = await fetch(pathAndQuery, {
+          method,
+          credentials: 'same-origin',
+          signal: AbortSignal.timeout(20_000),
+          headers: {
+            Accept: 'application/json',
+            ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+            ...(receipt ? { 'Idempotency-Key': receipt.key } : {}),
+            ...opts.headers,
+          },
+          body: bodyText,
+        });
+        break;
+      } catch {
+        if (attempt === 1) throw new ApiError(0, { error: 'network', message: "Can't reach the server. Retry this action when connected; its request ID is preserved to prevent duplicate changes." });
+      }
+    }
+    if (!res) throw new ApiError(0, { error: 'network', message: "Can't reach the server." });
+    const contentType = res.headers.get('content-type') ?? '';
+    if (res.status !== 304 && !contentType.includes('json') && !contentType.includes('text/csv')) {
+      throw new ApiError(res.redirected ? 401 : 503, { error: 'server_error', message: res.redirected ? 'Your sign-in session has expired. Reload to sign in again.' : 'The server did not return warehouse data. Check the API configuration.' });
     }
     const headers: Record<string, string> = {};
     res.headers.forEach((v, k) => (headers[k.toLowerCase() === 'etag' ? 'ETag' : k] = v));
     const type = res.headers.get('content-type') ?? '';
     let body: unknown = null;
-    if (res.status !== 304)
-      body = type.includes('json') ? await res.json().catch(() => null) : await res.text();
+    if (res.status !== 304) {
+      try {
+        body = type.includes('json') ? await res.json() : await res.text();
+        if (type.includes('json') && (body === null || typeof body !== 'object'))
+          throw new Error('Invalid API response');
+      } catch {
+        // A response may be truncated after the write committed. Keep the receipt so
+        // retrying cannot apply an additive stock operation a second time.
+        throw new ApiError(503, { error: 'server_error', message: 'The server response was incomplete. Retry this action; its request ID is preserved to prevent duplicate changes.' });
+      }
+    }
+    if (res.status < 500) receipt?.settle();
     return { status: res.status, body, headers };
   },
 };
@@ -157,11 +187,19 @@ export function createApi(transport: Transport, base: string = API_BASE) {
   const enc = encodeURIComponent;
 
   return {
+    listEmployees: () => call<{items: Employee[]}>('GET', '/employees'),
+    createEmployee: (b: {name: string; email: string}) => call<{employee: Employee; event_id: string}>('POST', '/employees', b),
+    patchEmployee: (id: string, b: {name?: string; email?: string; active?: boolean; version: number}) => call<{employee: Employee; event_id: string}>('PATCH', `/employees/${enc(id)}`, b),
+    listPackouts: (mine = false) => call<{items: Packout[]}>('GET', `/packouts${mine ? '?mine=true' : ''}`),
+    createPackout: (b: {name: string; slot_id: string}) => call<PackoutMutationResponse>('POST', '/packouts', b),
+    replenishPackout: (id: string, b: {version: number; part_id: string; from_slot_id: string; from_version: number; qty: number}) => call<PackoutMutationResponse>('POST', `/packouts/${enc(id)}/replenish`, b),
+    issuePackout: (id: string, b: {version: number; employee_id: string}) => call<PackoutMutationResponse>('POST', `/packouts/${enc(id)}/issue`, b),
+    returnPackout: (id: string, b: {version: number; counts: {part_id: string; remaining_qty: number}[]; reason?: string}) => call<PackoutMutationResponse>('POST', `/packouts/${enc(id)}/return`, b),
     // identity
     me: () => call<Me>('GET', '/me'),
 
     // layout (ETag aware)
-    async getLayout(ifNoneMatch?: string): Promise<LayoutResult> {
+    async getLayout(ifNoneMatch?: string | null): Promise<LayoutResult> {
       const res = await transport.request('GET', `${base}/layout`, {
         headers: ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : undefined,
       });
@@ -185,6 +223,7 @@ export function createApi(transport: Transport, base: string = API_BASE) {
       call<PartMutationResponse>('PATCH', `/parts/${enc(partId)}`, b),
     registerParts: (b: RegisterPartsRequest) => call<RegisterPartsResponse>('POST', '/parts/register', b),
 
+    patchLocation: (b: LocationPatch) => call<LocationMutationResponse>('PATCH', '/locations', b),
     // stock + locations
     adjustStock: (b: AdjustStockRequest) => call<AdjustStockResponse>('POST', '/stock/adjust', b),
     moveLocation: (b: MoveLocationRequest) => call<LocationMutationResponse>('POST', '/locations/move', b),

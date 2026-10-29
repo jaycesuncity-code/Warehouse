@@ -4,17 +4,19 @@
  * "mock": the whole contract runs in the browser (src/shared/mock), state in localStorage.
  * "live": the same client talks to /api (Cloudflare Pages Functions + D1).
  *
- * To go live for everyone, change DEFAULT_MODE below to 'live'.
- * For one-off testing add ?mode=live (or ?mode=mock) to any page URL; the choice is remembered for the tab.
+ * Production builds use the authenticated API. Demo overrides are accepted only in an explicit
+ * demo build or development; a stale browser preference cannot switch production to local inventory.
  */
 export type Mode = 'mock' | 'live';
 
-export const DEFAULT_MODE: Mode = 'mock';
+export const DEMO_ENABLED = import.meta.env.VITE_DATA_MODE === 'mock' || import.meta.env.DEV;
+export const DEFAULT_MODE: Mode = DEMO_ENABLED ? 'mock' : 'live';
 export const API_BASE = '/api';
 
 const SESSION_KEY = 'sc.mode';
 
 function readOverride(): Mode | null {
+  if (!DEMO_ENABLED) return null;
   try {
     const fromUrl = new URLSearchParams(globalThis.location?.search ?? '').get('mode');
     if (fromUrl === 'live' || fromUrl === 'mock') {

@@ -19,6 +19,8 @@ export default defineConfig(({ mode }) => ({
         demoLabels: resolve(root, 'warehouse/demo-labels.html'),
         employee: resolve(root, 'employee/index.html'),
         map: resolve(root, 'map/index.html'),
+        labels: resolve(root, 'labels/index.html'),
+        packouts: resolve(root, 'packouts/index.html'),
       },
     },
   },

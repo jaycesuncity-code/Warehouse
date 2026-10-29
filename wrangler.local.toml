@@ -1,0 +1,9 @@
+# Isolated local test database. Never points to warehouse-scph.
+name = "suncity-warehouse-local"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "dist"
+[[d1_databases]]
+binding = "warehouse-db"
+database_name = "warehouse-local-test"
+database_id = "00000000-0000-0000-0000-000000000001"
+migrations_dir = "migrations"

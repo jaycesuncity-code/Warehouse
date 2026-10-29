@@ -4,8 +4,9 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'functions', 'labels', 'test-results', 'playwright-report', 'artifacts'] },
+  { ignores: ['dist', 'node_modules', 'labels', 'test-results', 'playwright-report', 'artifacts'] },
   js.configs.recommended,
+  {files:['scripts/**/*.mjs'],languageOptions:{globals:globals.node}},
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],

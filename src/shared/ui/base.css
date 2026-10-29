@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --maroon: #892634;
+  --gold: #c9a84c;
+  --ink: #2b2b2b;
+  --surface: #f2f2f2;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 min-h-[40px] text-sm font-semibold transition-colors disabled:opacity-45 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-maroon text-white hover:bg-maroon-light;
+  }
+  .btn-gold {
+    @apply btn bg-gold text-ink hover:bg-gold-light;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-ink border border-gray-300 hover:bg-gray-50;
+  }
+  .btn-danger {
+    @apply btn bg-red-700 text-white hover:bg-red-800;
+  }
+  .btn-sm {
+    @apply min-h-[32px] px-2 text-xs;
+  }
+  .field-label {
+    @apply block text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-0.5;
+  }
+  .field {
+    @apply w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-maroon focus:outline-none;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  .panel {
+    @apply bg-white/95 backdrop-blur border border-gray-200 shadow-lg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
