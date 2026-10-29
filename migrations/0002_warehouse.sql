@@ -1,0 +1,26 @@
+-- Forward-only extension of 0001; validate existing schema before any production use.
+ALTER TABLE parts ADD COLUMN category TEXT;
+ALTER TABLE parts ADD COLUMN description TEXT NOT NULL DEFAULT '';
+ALTER TABLE parts ADD COLUMN department TEXT;
+ALTER TABLE parts ADD COLUMN unit TEXT NOT NULL DEFAULT 'each';
+ALTER TABLE parts ADD COLUMN cost REAL;
+ALTER TABLE parts ADD COLUMN sale_price REAL;
+ALTER TABLE parts ADD COLUMN reorder_point INTEGER;
+ALTER TABLE parts ADD COLUMN width_in REAL;
+ALTER TABLE parts ADD COLUMN height_in REAL;
+ALTER TABLE parts ADD COLUMN depth_in REAL;
+ALTER TABLE parts ADD COLUMN weight_lb REAL;
+ALTER TABLE parts ADD COLUMN aliases TEXT NOT NULL DEFAULT '[]';
+CREATE TABLE warehouse_meta (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, updated_at TEXT NOT NULL);
+INSERT INTO warehouse_meta VALUES(1,1,'1970-01-01T00:00:00Z');
+CREATE TABLE zones(zone_id TEXT PRIMARY KEY,name TEXT NOT NULL,room_no TEXT,polygon_in TEXT NOT NULL,open_edges TEXT NOT NULL,wall_height_in REAL,notes TEXT NOT NULL,verified INTEGER NOT NULL CHECK(verified IN(0,1)),version INTEGER NOT NULL,active INTEGER NOT NULL CHECK(active IN(0,1)));
+CREATE TABLE openings(opening_id TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN('door','overhead','opening')),tag TEXT,x1_in REAL NOT NULL,y1_in REAL NOT NULL,x2_in REAL NOT NULL,y2_in REAL NOT NULL,height_in REAL NOT NULL CHECK(height_in>0),zone_id TEXT REFERENCES zones(zone_id),notes TEXT NOT NULL,verified INTEGER NOT NULL CHECK(verified IN(0,1)),version INTEGER NOT NULL,active INTEGER NOT NULL CHECK(active IN(0,1)));
+CREATE TABLE shelves(shelf_id TEXT PRIMARY KEY,name TEXT NOT NULL,zone_id TEXT NOT NULL REFERENCES zones(zone_id),kind TEXT NOT NULL,x_in REAL NOT NULL,y_in REAL NOT NULL,rotation_deg REAL NOT NULL,width_in REAL NOT NULL CHECK(width_in>0),depth_in REAL NOT NULL CHECK(depth_in>0),height_in REAL NOT NULL CHECK(height_in>0),cols INTEGER NOT NULL CHECK(cols>0),wall_ref TEXT,notes TEXT NOT NULL,version INTEGER NOT NULL,active INTEGER NOT NULL CHECK(active IN(0,1)));
+CREATE UNIQUE INDEX shelf_names ON shelves(lower(name)) WHERE active=1;
+CREATE TABLE shelf_rows(shelf_id TEXT NOT NULL REFERENCES shelves(shelf_id),row_index INTEGER NOT NULL,row_label TEXT NOT NULL,elevation_in REAL NOT NULL CHECK(elevation_in>=0),clear_height_in REAL NOT NULL CHECK(clear_height_in>0),PRIMARY KEY(shelf_id,row_index));
+CREATE TABLE slots(slot_id TEXT PRIMARY KEY,shelf_id TEXT NOT NULL REFERENCES shelves(shelf_id),slot_no INTEGER NOT NULL CHECK(slot_no>0),row_index INTEGER NOT NULL CHECK(row_index>=0),col_start INTEGER NOT NULL CHECK(col_start>0),width_span INTEGER NOT NULL CHECK(width_span>0),height_span INTEGER NOT NULL CHECK(height_span>0),bin_type TEXT,bin_width_in REAL,bin_height_in REAL,bin_depth_in REAL,bin_color TEXT,version INTEGER NOT NULL,active INTEGER NOT NULL CHECK(active IN(0,1)));
+CREATE INDEX slots_shelf ON slots(shelf_id,active);
+CREATE TABLE stock(part_id TEXT NOT NULL REFERENCES parts(part_id),slot_id TEXT NOT NULL REFERENCES slots(slot_id),par_qty INTEGER NOT NULL CHECK(par_qty>=0),on_hand_qty INTEGER NOT NULL CHECK(on_hand_qty>=0),counted_at TEXT,counted_by TEXT,version INTEGER NOT NULL,active INTEGER NOT NULL CHECK(active IN(0,1)),PRIMARY KEY(part_id,slot_id));
+CREATE INDEX stock_slot ON stock(slot_id,active);
+CREATE TABLE events(event_id TEXT PRIMARY KEY,at TEXT NOT NULL,by TEXT NOT NULL,action TEXT NOT NULL,entity TEXT NOT NULL,entity_id TEXT NOT NULL,before TEXT NOT NULL,after TEXT NOT NULL,reason TEXT,undone_by TEXT REFERENCES events(event_id) DEFERRABLE INITIALLY DEFERRED);
+CREATE INDEX events_entity ON events(entity,entity_id,at);
