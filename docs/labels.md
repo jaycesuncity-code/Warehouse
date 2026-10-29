@@ -47,7 +47,9 @@ is used during PDF generation.
 - Printing requires **100% / Actual size**. The retained test page has a 1-inch
   measurement square. Software tests verify PDF coordinates and QR decoding;
   they do **not** establish accuracy on a physical printer. Measure a test page
-  on the actual printer before printing the full batch.
+  on the actual printer before printing the full batch. Opening the test page
+  clears the label-download buttons so they cannot disagree with the preview;
+  generate labels again when calibration is finished.
 - Expected quantity stays in draft/export records; it is never posted to stock.
 
 ## Spreadsheet handling
@@ -79,3 +81,12 @@ and retries, CSV upload/paste/XLSX reimport, stale output invalidation, restored
 drafts, viewer restrictions, and desktop/mobile layouts. On the implementation
 workstation these checks used isolated demo builds and Chromium; no production
 catalog or inventory was modified.
+
+The manual-entry browser test retains its actual downloaded PDF as a Playwright
+attachment for visual review. A separate two-page fixture was rendered with
+system Poppler at 150 DPI: both pages were visually inspected and all 23 QR
+payloads decoded correctly from the rendered pixels, with 20 labels after the
+two skipped positions on page one and three labels on page two. This verifies
+software output, not a physical printer. The stale-output browser check also
+covers a late edit that finishes after the renderer has exposed its preview;
+failed generation clears the frame preview and every print/download link.

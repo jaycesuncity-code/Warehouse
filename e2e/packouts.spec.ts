@@ -102,6 +102,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 800 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`packouts-${viewport.width}.png`), fullPage: true });
     await page.getByRole('link', { name: /Staging location/ }).click();
+    // Wait for the staging deep link to finish selecting its shelf before changing tabs.
+    await expect(page.getByTestId('front-view')).toBeVisible();
     if (viewport.width < 768) await page.getByRole('button', { name: 'Layout', exact: true }).click();
     await expect(page.getByText('packout', { exact: true })).toBeVisible();
   });
@@ -131,4 +133,54 @@ test('viewer sees only their own kit and cannot mutate any packout', async ({ pa
   }, data.slots[0]);
   expect(denied).toBe(403);
   expect((await page.evaluate(() => window.__sc.api.listPackouts())).items.map(kit => kit.name)).toEqual(['Assigned to viewer']);
+});
+
+test('transfer conflicts refresh source stock and permit an informed retry', async ({ page }) => {
+  const data = await fixture(page);
+  await kit(page, 'Retry kit', data.slots[0]);
+  const part = data.parts[0];
+  const source = part.locations.find(location => !data.slots.includes(location.slot_id) && location.on_hand_qty >= 10)!;
+  await page.getByLabel('Find a part to transfer', { exact: true }).fill(part.part_code);
+  await page.getByTestId('part-row').filter({ hasText: part.part_code }).click();
+  await page.getByRole('combobox', { name: 'Take from', exact: true }).selectOption(source.slot_id);
+  await page.getByLabel('Quantity to transfer', { exact: true }).fill('2');
+  // Another worker adjusts this source after the operator loaded its version.
+  await page.evaluate(({ part_id, slot_id }) => window.__sc.api.adjustStock({ part_id, slot_id, delta: -1, reason: 'Concurrent count correction' }), { part_id: part.part_id, slot_id: source.slot_id });
+  await page.getByRole('button', { name: 'Transfer to kit', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Latest quantities loaded');
+  await expect(page.getByRole('combobox', { name: 'Take from', exact: true }).locator('option:checked')).toContainText(`${source.on_hand_qty - 1} available`);
+  expect((await currentPart(page, part.part_id)).locations.find(location => location.slot_id === data.slots[0])).toBeUndefined();
+  await page.getByRole('button', { name: 'Transfer to kit', exact: true }).click();
+  await expect(page.getByText('Stock transferred into kit. Total inventory is unchanged.', { exact: true })).toBeVisible();
+  const updated = await currentPart(page, part.part_id);
+  expect(updated.on_hand_total).toBe(part.on_hand_total - 1);
+  expect(updated.locations.find(location => location.slot_id === data.slots[0])?.on_hand_qty).toBe(2);
+  expect(updated.locations.find(location => location.slot_id === source.slot_id)?.on_hand_qty).toBe(source.on_hand_qty - 3);
+});
+
+test('employee retries a failed part lookup independently of kit refreshes', async ({ page }) => {
+  await openApp(page);
+  const part = (await page.evaluate(() => window.__sc.api.searchParts({ limit: 1 }))).items[0];
+  await page.goto('/employee/?latency=0');
+  await expect(page.getByRole('region', { name: 'My issued kits' })).not.toContainText('Loading');
+  await page.evaluate(() => {
+    const getPart = window.__sc.api.getPart;
+    let fail = true;
+    window.__sc.api.getPart = async id => {
+      if (fail) { fail = false; throw new Error('Temporary lookup failure'); }
+      return getPart(id);
+    };
+  });
+  await page.getByTestId('lookup-input').fill(part.part_id);
+  await page.getByTestId('lookup-go').click();
+  await expect(page.getByRole('alert')).toContainText('Temporary lookup failure');
+  // Refreshing employee custody must not dismiss a separate lookup error.
+  await page.getByTestId('demo-badge').click();
+  await page.getByTestId('role-editor').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'My issued kits' })).not.toContainText('Loading');
+  await expect(page.getByRole('alert')).toContainText('Temporary lookup failure');
+  await page.getByRole('button', { name: 'Retry part lookup', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Part details' })).toContainText(part.part_code);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

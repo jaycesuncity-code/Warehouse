@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../shared/api';
 import type { Packout, Part } from '../shared/contract';
 import { ScannerDialog } from '../shared/scanner/ScannerDialog';
@@ -9,23 +9,26 @@ function App() {
   const { epoch } = useSession();
   const [part, setPart] = useState<Part | null>(null);
   const [kits, setKits] = useState<Packout[]>([]);
-  const [error, setError] = useState('');
+  const [kitsError, setKitsError] = useState('');
+  const [partError, setPartError] = useState<{ id: string; message: string } | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const lookupSequence = useRef(0);
   const [loading, setLoading] = useState(true);
   const [scan, setScan] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setKitsError('');
     api
       .listPackouts(true)
       .then((result) => {
         if (active) {
           setKits(result.items);
-          setError('');
         }
       })
       .catch((e: Error) => {
-        if (active) setError(e.message);
+        if (active) setKitsError(e.message);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -34,13 +37,35 @@ function App() {
       active = false;
     };
   }, [epoch, retry]);
+  useEffect(
+    () => () => {
+      lookupSequence.current++;
+    },
+    [],
+  );
   const lookup = useCallback((id: string) => {
+    const sequence = ++lookupSequence.current;
     setScan(false);
-    setError('');
+    setPart(null);
+    setPartError(null);
+    setLookingUp(true);
     void api
       .getPart(id)
-      .then(setPart)
-      .catch((e: Error) => setError(e.message));
+      .then((result) => {
+        if (sequence === lookupSequence.current) setPart(result);
+      })
+      .catch((e: Error) => {
+        if (sequence === lookupSequence.current) setPartError({ id, message: e.message });
+      })
+      .finally(() => {
+        if (sequence === lookupSequence.current) setLookingUp(false);
+      });
+  }, []);
+  const pickPart = useCallback((value: Part | null) => {
+    lookupSequence.current++;
+    setPart(value);
+    setPartError(null);
+    setLookingUp(false);
   }, []);
   return (
     <>
@@ -54,16 +79,29 @@ function App() {
             </button>
           </div>
           <PartLookup
-            onPick={setPart}
+            onPick={pickPart}
             onLabelText={lookup}
             hint="Search a name or code, scan a label, or paste a Part ID."
           />
         </section>
-        {error && (
+        {lookingUp && (
+          <p role="status" className="card">
+            Loading part details…
+          </p>
+        )}
+        {partError && (
           <div role="alert" className="card border-red-300 text-red-800">
-            {error}{' '}
+            {partError.message}{' '}
+            <button className="btn btn-secondary mt-2" onClick={() => lookup(partError.id)}>
+              Retry part lookup
+            </button>
+          </div>
+        )}
+        {kitsError && (
+          <div role="alert" className="card border-red-300 text-red-800">
+            {kitsError}{' '}
             <button className="btn btn-secondary mt-2" onClick={() => setRetry((n) => n + 1)}>
-              Retry
+              Retry kits
             </button>
           </div>
         )}
@@ -77,7 +115,7 @@ function App() {
               <button
                 className="btn btn-neutral"
                 aria-label="Close part details"
-                onClick={() => setPart(null)}
+                onClick={() => pickPart(null)}
               >
                 Close
               </button>

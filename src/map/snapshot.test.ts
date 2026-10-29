@@ -8,7 +8,7 @@ vi.mock('../shared/api', async (original) => {
   return { ...module, api: module.createApi(mockTransport) };
 });
 import { api } from './api';
-import { replaySnapshot } from './snapshot';
+import { parseSnapshot, replaySnapshot } from './snapshot';
 
 beforeEach(() => {
   resetDemoData();
@@ -34,6 +34,20 @@ async function fixture() {
 }
 
 describe('snapshot replay through the canonical inventory API', () => {
+  it('rejects malformed records and duplicate identities before saving any geometry', async () => {
+    const { current, snapshot } = await fixture();
+    const before = structuredClone(loadMockState());
+    const malformed = { ...snapshot, shelves: [{ ...snapshot.shelves[0], slots: [null] }] };
+    expect(() => parseSnapshot(JSON.stringify(malformed))).toThrow('invalid bin record');
+    await expect(replaySnapshot(malformed as unknown as Layout, current, api)).rejects.toThrow('invalid bin record');
+    expect(() => parseSnapshot(JSON.stringify({ ...snapshot, zones: [null] }))).toThrow('invalid zone record');
+    expect(() => parseSnapshot(JSON.stringify({ ...snapshot, shelves: [{ ...snapshot.shelves[0], slots: null }] }))).toThrow('slots array');
+    expect(() => parseSnapshot(JSON.stringify({ ...snapshot, zones: [snapshot.zones[0], snapshot.zones[0]] }))).toThrow('duplicate zone ID');
+    expect(() => parseSnapshot(JSON.stringify({ format: 'suncity-layout-snapshot', format_version: 2, layout: snapshot }))).toThrow('not supported');
+    expect(parseSnapshot(JSON.stringify({ format: 'suncity-layout-snapshot', format_version: 1, layout: snapshot }))).toEqual(snapshot);
+    expect(loadMockState()).toEqual(before);
+  });
+
   it('uses new server-issued parent IDs and preserves stock while rebuilding geometry', async () => {
     const { current, snapshot } = await fixture();
     const stockBefore = structuredClone(loadMockState().stock);

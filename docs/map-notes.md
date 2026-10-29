@@ -18,7 +18,7 @@ Floor, orbit, walk, and front views remain available, with mobile panels and a t
 
 Geometry changes use optimistic versions. A shelf-column or row change that would strand bins returns `409 slot_out_of_bounds` with the actual offending slot IDs, location codes, and reasons. Rejected requests do not alter shelf or slot state. Occupied-slot, overlap, stale-version, and offline retry dialogs preserve the original interactions.
 
-Snapshot export/import is for geometry. Import replays validated API operations rather than replacing database state. Newly created rooms receive server IDs before openings and shelves are created; shelves receive server IDs before their bins are created. Retrying a partial import reuses identical already-created geometry. Failures are reported per item, including individual bins. A failed parent prevents new children from referencing an unsaved parent. Part identities, stock counts, and assignments are not replayed from the snapshot.
+Snapshot export/import is for geometry. Before any save, import rejects malformed record structures, missing bin arrays, duplicate record IDs, and unsupported snapshot versions. Import then replays validated API operations rather than replacing database state. Newly created rooms receive server IDs before openings and shelves are created; shelves receive server IDs before their bins are created. Retrying a partial import reuses identical already-created geometry. Failures are reported per item, including individual bins. A failed parent prevents new children from referencing an unsaved parent. Part identities, stock counts, and assignments are not replayed from the snapshot.
 
 ## Unverified building information
 
@@ -43,7 +43,7 @@ The Fiber v10 migration removes that clock API but is currently a prerelease. Up
 
 The suite exercises rendered geometry at 390 × 844 and 1280 × 800, camera modes, touch movement, search focus, scanner/map roundtrips, shelf and slot editing, stock changes, occupied/overlap/bounds/version conflicts, undo/redo, viewer permissions, offline retry, issued-kit integration, and strict console/network checks. Scanner tests decode a real QR image through Chromium's fake-camera video stream and also cover no-camera, denied-camera, and keyboard-scanner paths. This verifies browser behavior; it is not a physical camera or printer certification.
 
-The 2026-10-29 local integration run passed all **71 browser tests** in 6.6 minutes, including labels and packouts. The focused map/scanner/bounds unit run passed **64 tests across six files**. Whole-project TypeScript and ESLint checks also passed. These browser results use the explicit demo build; authenticated API, D1, remote CI, and deployment readiness require their own checks.
+The final 2026-10-29 local integration run passed all **74 browser tests** in 4.3 minutes, including labels and packouts. The focused snapshot import unit run passed **5 tests**, with whole-project TypeScript and changed-file ESLint checks passing. The browser suite includes the downloaded label PDF/scanner roundtrip, malformed-snapshot rejection before any save, and employee/packout retry regressions. These browser results use the explicit demo build; authenticated API, D1, remote CI, and deployment readiness require their own checks. The full local log is `artifacts/release-e2e.log`, with test artifacts in `artifacts/release-e2e-results/`.
 
 Run the standard Playwright setup and tests after `npm ci`:
 
@@ -58,6 +58,6 @@ Screenshots are produced under `artifacts/screenshots/{390x844,1280x800}` and `a
 
 ## Performance evidence
 
-The performance browser case loads 300 shelves and 5,100 slots. It verifies that instanced rendering stays below 150 draw calls and writes measured timings to `artifacts/perf.json`. The latest integrated run recorded 68 draw calls and 102,001 triangles, with layout data loaded in 200 ms. Orbit frames averaged 341 ms (p95 1,537 ms), and plan frames averaged 179 ms (p95 304 ms). These software-renderer timings vary substantially with shared CPU load; an earlier integrated run averaged 154 ms and 163 ms respectively.
+The performance browser case loads 300 shelves and 5,100 slots. It verifies that instanced rendering stays below 150 draw calls and writes measured timings to `artifacts/perf.json`. The final integrated run recorded 68 draw calls and 102,001 triangles, with layout data loaded in 115 ms. Orbit frames averaged 87 ms (p95 210 ms), and plan frames averaged 77 ms (p95 184 ms). These software-renderer timings vary substantially with shared CPU load.
 
 These timings use headless Chromium with SwiftShader CPU rendering. They establish fixture scale, render complexity, and reproducibility; frame rate on a warehouse device with a real GPU remains unverified. Database/search benchmarks are documented separately in [database-performance.md](database-performance.md).

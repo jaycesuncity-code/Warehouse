@@ -1,8 +1,9 @@
 // End-to-end checks for the /map/ page (mock mode). Run: npm run build && npm run test:e2e
 // Every test blocks non-local network requests and fails on console errors.
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { SceneShelf } from "../src/map/scene/Debug";
+import type { Layout } from "../src/shared/contract";
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -95,6 +96,12 @@ async function cellPoint(page: Page, row: string, col: number, cols: number) {
 }
 
 async function dragCells(page: Page, row: string, c0: number, c1: number, cols: number) {
+  // Undo/redo notifications can cover the bottom deck. Clear them through their real UI first.
+  const dismiss = page.getByRole('button', { name: 'Dismiss', exact: true });
+  while (await dismiss.count()) {
+    try { await dismiss.first().click({ timeout: 1000 }); }
+    catch (error) { if (await dismiss.count()) throw error; } // a notice may expire between reads
+  }
   const a = await cellPoint(page, row, c0, cols);
   const b = await cellPoint(page, row, c1, cols);
   await page.mouse.move(a.x, a.y);
@@ -657,6 +664,56 @@ test('packout shelf type connects issued kits to map, scanner, and employee inve
   await expect(page.getByTestId('qty-adjust')).toHaveCount(0);
   await page.goto('/employee/?latency=0');
   await expect(page.getByTestId('employee-inventory')).toContainText('Map test kit');
+});
+
+test('snapshot export and import validate the whole file before replaying geometry', async ({ page }) => {
+  await open(page, '/map/?latency=0', 'admin');
+  await page.getByTestId('more-menu').click();
+  const downloading = page.waitForEvent('download');
+  await page.getByTestId('export-snapshot').click();
+  const download = await downloading;
+  const snapshot = JSON.parse(readFileSync((await download.path())!, 'utf8')) as {
+    format: string; format_version: number; layout: Layout;
+  };
+  expect(snapshot.format).toBe('suncity-layout-snapshot');
+  expect(snapshot.format_version).toBe(1);
+  const before = await db(page);
+  const shelf = structuredClone(snapshot.layout.shelves[0]);
+  const zone = structuredClone(snapshot.layout.zones.find(zone => zone.zone_id === shelf.zone_id)!);
+  zone.zone_id = 'zon-22222222';
+  zone.name = 'Imported room';
+  shelf.shelf_id = 'shf-22222222';
+  shelf.name = 'Imported shelf';
+  shelf.zone_id = zone.zone_id;
+  shelf.slots = shelf.slots.slice(0, 2).map((slot, index) => ({ ...slot, slot_id: `slt-2222222${index + 2}` }));
+  snapshot.layout = { ...snapshot.layout, zones: [zone], openings: [], shelves: [shelf] };
+  const upload = async (value: unknown) => {
+    if (!(await page.getByTestId('export-snapshot').isVisible())) await page.getByTestId('more-menu').click();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'layout-snapshot.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)),
+    });
+  };
+  await upload({ ...snapshot, layout: { ...snapshot.layout, shelves: [{ ...shelf, slots: [null] }] } });
+  await expect(page.getByText('The snapshot contains an invalid bin record.', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('confirm-dialog')).toHaveCount(0);
+  expect((await db(page)).shelves).toEqual(before.shelves);
+  expect((await db(page)).zones).toEqual(before.zones);
+
+  await upload(snapshot);
+  await expect(page.getByTestId('confirm-dialog')).toContainText('Import layout snapshot?');
+  await page.getByTestId('confirm-dialog').getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText('Imported 4 items', { exact: true })).toBeVisible();
+  const after = await db(page);
+  const importedZone = after.zones.find(item => item.name === 'Imported room')!;
+  const importedShelf = after.shelves.find(item => item.name === 'Imported shelf')!;
+  expect(importedZone.zone_id).not.toBe(zone.zone_id);
+  expect(importedShelf.shelf_id).not.toBe(shelf.shelf_id);
+  expect(importedShelf.zone_id).toBe(importedZone.zone_id);
+  expect(after.slots.filter(slot => slot.shelf_id === importedShelf.shelf_id)).toHaveLength(2);
+  expect(after.stock).toEqual(before.stock);
+  expect(after.parts).toEqual(before.parts);
+  expect(importedZone.verified).toBe(false);
+  await assertConsistent(page);
 });
 
 test.describe("performance", () => {

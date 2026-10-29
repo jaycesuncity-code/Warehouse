@@ -1,8 +1,46 @@
 import type { Layout, Shelf } from '../shared/contract';
 import type { api } from './api';
 
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** Reject malformed structure before replay can save any earlier items. Values remain API-validated. */
+function validateSnapshot(value: unknown): asserts value is Layout {
+  if (!record(value) || !Array.isArray(value.zones) || !Array.isArray(value.openings) || !Array.isArray(value.shelves))
+    throw new Error("That file isn't a layout snapshot.");
+  const rows = (items: unknown[], kind: string, idKey: string) => {
+    const ids = new Set<string>();
+    for (const item of items) {
+      if (!record(item) || typeof item[idKey] !== 'string' || !item[idKey].trim())
+        throw new Error(`The snapshot contains an invalid ${kind} record.`);
+      if (ids.has(item[idKey])) throw new Error(`The snapshot contains a duplicate ${kind} ID.`);
+      ids.add(item[idKey]);
+    }
+  };
+  rows(value.zones, 'zone', 'zone_id');
+  rows(value.openings, 'opening', 'opening_id');
+  rows(value.shelves, 'shelf', 'shelf_id');
+  const slots: unknown[] = [];
+  for (const shelf of value.shelves as Record<string, unknown>[]) {
+    if (!Array.isArray(shelf.slots)) throw new Error('Every snapshot shelf must contain a slots array.');
+    slots.push(...shelf.slots);
+  }
+  rows(slots, 'bin', 'slot_id');
+}
+
+export function parseSnapshot(text: string): Layout {
+  const parsed: unknown = JSON.parse(text);
+  const wrapped = record(parsed) && parsed.format === 'suncity-layout-snapshot';
+  if (wrapped && parsed.format_version !== undefined && parsed.format_version !== 1)
+    throw new Error('This layout snapshot version is not supported. Export it with a compatible app version.');
+  const layout = wrapped ? parsed.layout : parsed;
+  validateSnapshot(layout);
+  return layout;
+}
+
 /** Replay geometry only. Every newly created parent receives a server ID before children are sent. */
 export async function replaySnapshot(snapshot: Layout, current: Layout, client: typeof api) {
+  validateSnapshot(snapshot);
   let ok = 0;
   const failed: string[] = [];
   const zoneIds = new Map<string, string>();

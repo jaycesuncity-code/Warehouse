@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { integratedRenderer } from './renderer';
@@ -16,12 +17,13 @@ interface Renderer {
 }
 function editor() {
   const errors: unknown[] = [];
+  const blobs: Blob[] = [];
   const console = new VirtualConsole(); console.on('jsdomError', error => errors.push(error));
   const dom = new JSDOM(integratedRenderer(source), {
     runScripts: 'dangerously', url: 'https://labels.test', virtualConsole: console,
     beforeParse(window) {
       window.structuredClone = structuredClone;
-      window.URL.createObjectURL = () => 'blob:test'; window.URL.revokeObjectURL = () => {};
+      window.URL.createObjectURL = value => { blobs.push(value as Blob); return 'blob:test'; }; window.URL.revokeObjectURL = () => {};
       window.HTMLElement.prototype.scrollIntoView = () => {};
     },
   });
@@ -32,7 +34,7 @@ function editor() {
     const reader = new window.FileReader(); reader.onload = () => resolve(Buffer.from(reader.result as ArrayBuffer));
     reader.onerror = () => reject(reader.error); reader.readAsArrayBuffer(blob);
   });
-  return { dom, bridge, bytes };
+  return { dom, bridge, bytes, blobs };
 }
 const row = (index = 0): StagedRow => ({
   k: index + 1, id: 'prt-2222222' + '23456789abcdefghjkmnpqrstuvwxyz'[index], idSrc: 'reused',
@@ -119,6 +121,21 @@ describe('preserved vector label renderer integration', () => {
     expect(dom.window.document.querySelectorAll('#firstPage .printed')).toHaveLength(1);
     expect(dom.window.document.querySelectorAll('#firstPage .skipped')).toHaveLength(2);
     expect(dom.window.document.querySelector('#pageInfo')!.textContent).toContain('1 selected label');
+    dom.window.close();
+  });
+  it('produces a Letter calibration page with a true 72-point measurement square', async () => {
+    const { dom, bytes, blobs } = editor();
+    let announced = 0;
+    dom.window.addEventListener('warehouse-print-test', () => announced++);
+    dom.window.open = () => null;
+    (dom.window.document.querySelector('#btnTest') as HTMLButtonElement).click();
+    expect(announced).toBe(1);
+    const text = (await bytes(blobs.at(-1)!)).toString('latin1');
+    expect(text).toMatch(/\/MediaBox\s*\[0\s+0\s+612\.?\s+792\.?\]/);
+    const contents = [...text.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)]
+      .map(match => inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1')).join('\n');
+    expect(contents).toMatch(/72\.?\s+576\.?\s+72\.?\s+-72\.?\s+re/);
+    expect(contents).toContain('PRINT TEST PAGE');
     dom.window.close();
   });
 });

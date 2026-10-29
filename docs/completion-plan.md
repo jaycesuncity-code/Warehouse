@@ -1,31 +1,32 @@
-# Warehouse integration completion plan (2026-10-29)
+# Warehouse release gates — current integration
 
-## Deployment finding
-The deployment log supplied by the user built main at commit 711378e, not the integration branch. Static assets published; Pages Functions did not run because there were no routes. The Cloudflare Pages D1 binding is named `warehouse-db` and points to `warehouse-scph`. A binding alone does not create schema or implement endpoints.
+The original completion plan's source-integration tasks have been implemented. See [README](../README.md), [current checkpoint](implementation-checkpoint.md), [security](security.md), [labels](labels.md), [map notes](map-notes.md), and [database verification](database-performance.md) for the actual design and evidence.
 
-## What has been committed
-- Draft PR #1 carries the imported Workstream C sources.
-- A connected /labels/ workflow stages parts, selects subsets, resolves IDs using the parts API and retains original generator/PDF formatting.
-- The original 810KB generator remains untouched.
-- A new Pages Function supplies GET /api/health, GET /api/me, GET /api/parts, GET /api/parts/:id and POST /api/parts/register using D1. Registration does not write stock.
-- Cloudflare Access JWT signature, issuer, audience, expiration and editor allowlist are checked; no Access configuration means 503 (fail closed).
-- `migrations/0001_parts_catalog.sql` is a proposed catalog migration. It has NOT been applied. Existing production tables have NOT been inspected; do not apply without comparing their schema.
+## Completed in source
 
-## Remaining critical-path tasks
-1. Resolve the map build: safely add three / drei / fiber / zustand dependencies and a consistent npm lockfile.
-2. Reconcile Workstream C types (Row, ShelfBase, LocationWrite, etc.), response wrappers and shared UI APIs with Workstream B without replacing scanner implementations.
-3. Implement or reconcile the map's location-par PATCH, unassigned parts search, affected shelf IDs, bounds conflicts, audit undo/redo and permissions.
-4. Wire real D1 schema/endpoints for building/shelf/slot/location/stock/events after determining existing schema and confirming migration strategy. The current API is parts-catalog-only, so the 3D map cannot work against live data yet.
-5. Fix label-workflow browser behavior and add tests for previous-ID revalidation, duplicate conflicts, partial retries, subset printing, exported columns, exact QR payload and print-size geometry.
-6. Run npm ci, typecheck, tests, build and Playwright through the new PR CI, iterate until all pass, check 3D rendering/performance and original scan workflows.
-7. Field-verify all warehouse room/opening measurements before presenting geometry as measured.
+- Recovered all unintended zero-byte files and regenerated a valid lockfile.
+- Integrated the existing 3D map while preserving scanner and shared API contracts.
+- Implemented relational D1 geometry, stock, audit, undo/redo, packout custody and employee workflows.
+- Hardened signed Access authentication, server-side roles, input validation, revisions and retry receipts.
+- Completed selected-parts registration, PDF/QR generation, imports/exports, reprints, skipped label positions and stale-output invalidation.
+- Measured and improved search/stock reads and map layout processing with behavior-parity tests.
+- Added actual compiled-worker/D1 and production-browser verification alongside the full desktop/mobile demo workflow suite.
+- Consolidated verification into one CI workflow; it does not deploy or migrate remote data.
 
-## Required operations before deployment
-- Cloudflare Access application protection on the Pages domain.
-- CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD configured with actual Access app audience.
-- WAREHOUSE_EDITORS and WAREHOUSE_ADMINS with reviewed email allowlists.
-- Preview/test D1 environment for the above operations; do not test writes on production.
-- Explicit approval before touching production D1, deploying changes to production, or merging main.
+## Gates before merging a release
 
-## Verification
-The current integration branch has NOT passed the required build/test gate. The user's successful Cloudflare log is from main, not this branch. Keep PR #1 in draft.
+1. All required checks must pass on the exact proposed GitHub commit, including clean install, types, lint, unit/integration tests, frontend/Functions builds, real local D1/browser smoke and full Playwright.
+2. Confirm the deployment target's real Pages binding, Access variables/roles and production schema. The provided production screenshot matches the old main placeholder; publishing new source alone does not create the D1 schema or configure authentication.
+3. Test a separate, authenticated preview database and deployment. Use a copy of the real schema when rehearsing upgrades, preserving IDs and inventory.
+4. Obtain authorization for any production migration, main merge or production deployment. Main may be configured to deploy automatically, so merge approval must account for that effect.
+5. After an authorized release, verify authenticated health, identity, database persistence and the real user workflows.
+
+## Exact deployment requirements
+
+Build command `npm run build`, output `dist`, Node 22, canonical API under `/api`, runtime D1 binding **`warehouse-db`**, and actual `CF_ACCESS_TEAM_DOMAIN`/`CF_ACCESS_AUD` with reviewed editor/admin allowlists. A historical handoff reports a database named `warehouse-scph`; this has not been independently inspected.
+
+The repository's Wrangler file is local-only to avoid overriding existing dashboard bindings with placeholder values. See [deployment.md](deployment.md) for configuration ownership, isolated local migration commands, and production review requirements.
+
+## What remains deliberately unclaimed
+
+A remote preview, actual production schema compatibility, deployed Access policies and physical print calibration are not verified by local tests. Warehouse measurements remain visibly unverified until surveyed. No production changes have been performed.

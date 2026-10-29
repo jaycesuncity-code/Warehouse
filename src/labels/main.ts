@@ -187,6 +187,9 @@ async function run(register: boolean) {
       message(`PDF ready: ${rows.length} verified label(s) on ${pages} US Letter sheet(s). Use 100% / Actual size when printing.`);
     }
   } catch (error) {
+    // A renderer may have exposed its preview before a late import/edit is
+    // detected. Clear both frame and parent outputs on every failed generation.
+    invalidateOutput();
     message(error instanceof Error ? error.message : 'Could not complete this action. Retry when connected.', true);
   } finally {
     active = false; frame.inert = false; renderSelection(); saveDraft();
@@ -255,6 +258,10 @@ document.querySelector('#query')!.addEventListener('keydown', event => {
 });
 window.addEventListener('warehouse-label-change', onEditorChange);
 window.addEventListener('warehouse-generate', () => void run(false));
+window.addEventListener('warehouse-print-test', () => {
+  invalidateOutput(); renderSelection();
+  message('Printer test page opened. Print at 100% / Actual size and measure its 1-inch square. Generate labels again to restore the label preview and downloads.');
+});
 window.addEventListener('pagehide', saveDraft);
 frame.onload = () => {
   try {

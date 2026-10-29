@@ -517,13 +517,17 @@ export function TopBar({ compact }: { compact?: boolean }) {
                         confirmLabel: "Import",
                         danger: true,
                         onConfirm: async () => {
-                          const r = await importSnapshot(snap);
-                          toast(
-                            r.failed.length
-                              ? `Imported ${r.ok}; ${r.failed.length} failed: ${r.failed.slice(0, 2).join("; ")}`
-                              : `Imported ${r.ok} items`,
-                            r.failed.length ? "warn" : "success",
-                          );
+                          try {
+                            const r = await importSnapshot(snap);
+                            toast(
+                              r.failed.length
+                                ? `Imported ${r.ok}; ${r.failed.length} failed: ${r.failed.slice(0, 2).join("; ")}`
+                                : `Imported ${r.ok} items`,
+                              r.failed.length ? "warn" : "success",
+                            );
+                          } catch (error) {
+                            toast(error instanceof Error ? error.message : 'Could not import the layout snapshot.', 'error');
+                          }
                         },
                       });
                     } catch (err) {

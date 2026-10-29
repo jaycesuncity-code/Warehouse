@@ -19,6 +19,7 @@ export function integratedRenderer(source: string): string {
   replace("$('#btnDlPdf').addEventListener('click', () => { if (window.__lastPdfBlob) download(window.__lastPdfBlob, `bin-labels_${stamp()}.pdf`); });", "$('#btnDlPdf').hidden=true;");
   replace("$('#btnDlCsv').addEventListener('click', downloadCsv);", "$('#btnDlCsv').hidden=true;");
   replace("$('#btnDlXlsx').addEventListener('click', downloadXlsx);", "$('#btnDlXlsx').hidden=true;");
+  replace('const blob = buildTestPdf(); const url = showPdf(blob);', "parent.dispatchEvent(new Event('warehouse-print-test')); const blob = buildTestPdf(); const url = showPdf(blob);");
   replace('let stats = {};', `let stats = {};
 let selectedKeys = null;
 const printingCount = () => selectedKeys === null ? rows.length : rows.filter(row => selectedKeys.has(row.k)).length;`);

@@ -54,6 +54,7 @@ import {
   upsertZone,
 } from "./layoutOps";
 import { replaySnapshot } from "./snapshot";
+export { parseSnapshot } from "./snapshot";
 import { PRESETS, rowsFor, type PresetKey, type ShelfSize } from "./presets";
 import { allSearchPages, searchFocus, type SearchFocus } from "./search";
 import { flyTo, getMap, isAdmin, setMap, shelfById, toast, type DialogState, type Selection } from "./store";
@@ -1182,14 +1183,6 @@ export function exportSnapshot() {
     URL.revokeObjectURL(a.href);
     a.remove();
   }, 1000);
-}
-
-export function parseSnapshot(text: string): Layout {
-  const j = JSON.parse(text);
-  const lay = (j?.format === "suncity-layout-snapshot" ? j.layout : j) as Layout;
-  if (!lay || !Array.isArray(lay.zones) || !Array.isArray(lay.shelves) || !Array.isArray(lay.openings))
-    throw new Error("That file isn't a layout snapshot.");
-  return lay;
 }
 
 /** Admin: replays a snapshot through the API (zones, openings, shelves, slots). Part locations are not replayed. */

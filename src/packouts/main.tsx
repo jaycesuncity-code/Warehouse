@@ -96,8 +96,31 @@ function App() {
     } catch (e) {
       const detail =
         isApiError(e) && Object.values(e.fields).length ? ` ${Object.values(e.fields).join(' ')}` : '';
-      setError((e instanceof Error ? e.message : 'The operation failed.') + detail);
-      if (isApiError(e, 'version_conflict')) await refresh().catch(() => {});
+      const message = (e instanceof Error ? e.message : 'The operation failed.') + detail;
+      setError(message);
+      if (isApiError(e, 'version_conflict')) {
+        try {
+          await refresh();
+          if (part) {
+            const updated = await api.getPart(part.part_id);
+            setPart(updated);
+            if (
+              !updated.locations.some(
+                (location) =>
+                  location.slot_id === source && !location.issued_kit_id && location.on_hand_qty > 0,
+              )
+            )
+              setSource('');
+          }
+          setError(message + ' Latest quantities loaded. Review them and retry.');
+        } catch {
+          setPart(null);
+          setSource('');
+          setError(
+            message + ' Could not refresh warehouse data. Refresh this page and choose the part again.',
+          );
+        }
+      }
       return false;
     } finally {
       setBusy(false);
@@ -369,6 +392,7 @@ function App() {
               {kits.map((item) => (
                 <button
                   key={item.kit_id}
+                  disabled={busy}
                   className={`min-h-[80px] rounded-xl border-2 p-3 text-left ${selected === item.kit_id ? 'border-maroon bg-maroon-tint' : 'border-surface-line bg-white'}`}
                   onClick={() => setSelected(item.kit_id)}
                 >

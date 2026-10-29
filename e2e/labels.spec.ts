@@ -31,7 +31,7 @@ async function generate(page: Page) {
 }
 
 test.describe('connected parts and labels', () => {
-  test('manual staging, selected registration, exact PDF QR and scanner roundtrip', async ({ page }) => {
+  test('manual staging, selected registration, exact PDF QR and scanner roundtrip', async ({ page }, testInfo) => {
     await open(page);
     await add(page, 'LABEL-SELECTED', 'Copper Tee', '42');
     await add(page, 'LABEL-NOT-SELECTED', 'Copper Elbow', '50');
@@ -53,10 +53,22 @@ test.describe('connected parts and labels', () => {
     await page.locator('#download').click();
     const download = await downloaded;
     expect(download.suggestedFilename()).toBe('sun-city-bin-labels.pdf');
+    const pdfPath = testInfo.outputPath('sun-city-bin-labels.pdf');
+    await download.saveAs(pdfPath);
+    await testInfo.attach('Downloaded warehouse labels', { path: pdfPath, contentType: 'application/pdf' });
     const pdf = inspectLabelPdf(await readFile((await download.path())!));
     expect([pdf.width, pdf.height]).toEqual([612, 792]);
     expect(pdf.pages.flatMap(page => page.decoded)).toEqual([registered.part_id]);
     expect((await state(page)).stock).toEqual(stock);
+    const opened = page.waitForEvent('popup');
+    await editor(page).locator('#btnTest').click();
+    await (await opened).close();
+    await expect(page.locator('#status')).toContainText('Printer test page opened');
+    await expect(page.locator('#download')).toBeDisabled();
+    await expect(page.locator('#openPdf')).toBeHidden();
+    await expect(editor(page).locator('#pdfFrame')).toHaveAttribute('src', /^blob:/);
+    await generate(page);
+    await expect(page.locator('#status')).toContainText('PDF ready: 1 verified label');
     // The actual keyboard-wedge scanner consumes the exact payload decoded from the PDF.
     await page.goto('/warehouse/?latency=0#/scan');
     await expect(page.getByTestId('scan-screen')).toBeVisible();
@@ -129,6 +141,26 @@ test.describe('connected parts and labels', () => {
     await page.locator('#all').click(); await generate(page);
     await expect(page.locator('#status')).toContainText('PDF ready: 1');
     expect((await state(page)).parts.filter(part => part.part_code === 'LABEL-STALE')).toHaveLength(1);
+    // A previously queued import/edit may complete while a multi-page PDF yields.
+    // Simulate that late edit after the renderer exposes its preview.
+    await page.evaluate(() => {
+      const child = document.querySelector<HTMLIFrameElement>('#generator')!.contentWindow as Window & {
+        __BLG: { rows: { qty: string }[]; renderConfirmed: (rows: unknown[]) => Promise<Blob> };
+      };
+      const render = child.__BLG.renderConfirmed.bind(child.__BLG);
+      child.__BLG.renderConfirmed = async rows => {
+        const blob = await render(rows);
+        child.__BLG.rows[0].qty = '26';
+        window.dispatchEvent(new Event('warehouse-label-change'));
+        return blob;
+      };
+    });
+    await generate(page);
+    await expect(page.locator('#status')).toContainText('list changed during generation');
+    await expect(page.locator('#download')).toBeDisabled();
+    await expect(page.locator('#openPdf')).toBeHidden();
+    await expect(editor(page).locator('#pdfFrame')).not.toHaveAttribute('src');
+    await expect(editor(page).locator('#lnkPdf')).not.toHaveAttribute('href');
   });
 
   test('viewer can find and reprint existing parts but cannot register a new part', async ({ page }) => {
