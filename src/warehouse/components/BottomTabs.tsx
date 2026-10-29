@@ -13,7 +13,7 @@ export function BottomTabs({ active }: Props) {
       aria-label="Warehouse sections"
       className="fixed inset-x-0 bottom-0 z-30 border-t-4 border-gold bg-white pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className="mx-auto grid max-w-3xl grid-cols-3">
+      <ul className="mx-auto grid max-w-3xl grid-cols-4">
         <li>
           <a
             href="#/scan"
@@ -40,6 +40,7 @@ export function BottomTabs({ active }: Props) {
             Search
           </a>
         </li>
+        <li><a href="/labels/" data-testid="tab-labels" className={`${TAB} ${off}`}><span aria-hidden="true" className="text-2xl leading-none">🏷️</span>Parts / Labels</a></li>
         <li>
           <a href="/map/" data-testid="tab-map" className={`${TAB} ${off}`}>
             <span aria-hidden="true" className="text-2xl leading-none">
