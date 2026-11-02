@@ -37,7 +37,9 @@ export function FloorEvents() {
     if (s.tool?.kind === "move-part") return;
     if (
       e.intersections.some(
-        (i) => i.object.name.startsWith("opening:") || (i.object.name.startsWith("zone:") && editing(s) && isAdmin(s)),
+        (i) =>
+          i.object.name.startsWith("opening:") ||
+          (i.object.name.startsWith("zone:") && (!!i.object.userData.area_kind || (editing(s) && isAdmin(s)))),
       )
     )
       return;

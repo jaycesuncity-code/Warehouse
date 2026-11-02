@@ -48,6 +48,9 @@ describe('forward migrations preserve populated warehouse records', () => {
 
       db.exec(migration('0003_unverified_building.sql'));
       db.exec(migration('0004_packouts_and_retries.sql'));
+      const zonesBeforeAreaKind = db.prepare('SELECT * FROM zones ORDER BY zone_id').all();
+      const openingsBeforeAreaKind = db.prepare('SELECT * FROM openings ORDER BY opening_id').all();
+      db.exec(migration('0005_zone_area_kind.sql'));
 
       for (const name of preservedTables) {
         const after = db.prepare(`SELECT * FROM ${name}`).all();
@@ -77,6 +80,20 @@ describe('forward migrations preserve populated warehouse records', () => {
       }
       expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
       expect(db.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' });
+
+      // 0005 adds a nullable area_kind: every existing room keeps its values and stays an ordinary room.
+      expect(db.prepare('SELECT * FROM zones ORDER BY zone_id').all()).toEqual(
+        zonesBeforeAreaKind.map((row) => ({ ...row, area_kind: null })),
+      );
+      expect(db.prepare('SELECT * FROM openings ORDER BY opening_id').all()).toEqual(openingsBeforeAreaKind);
+      db.prepare(
+        "INSERT INTO zones VALUES ('zon-33333333','TOOLS',NULL,'[[0,0],[10,0],[10,10],[0,10]]','[0,1,2,3]',NULL,'',0,1,1,'tools')",
+      ).run();
+      db.prepare("UPDATE zones SET area_kind='packouts' WHERE zone_id='zon-33333333'").run();
+      db.prepare("UPDATE zones SET area_kind=NULL WHERE zone_id='zon-33333333'").run();
+      expect(() => db.prepare("UPDATE zones SET area_kind='office' WHERE zone_id='zon-33333333'").run()).toThrow(
+        /CHECK/,
+      );
 
       // The added custody schema must retain its foreign keys and unique active-bin constraint.
       expect(() =>

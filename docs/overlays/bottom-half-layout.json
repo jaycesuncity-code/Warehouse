@@ -1,0 +1,2475 @@
+{
+ "shelves": [
+  {
+   "key": "A1",
+   "shelf_id": "shf-zarhssgs",
+   "name": "A1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 8,
+   "y_in": 1701.5,
+   "width_in": 45.5,
+   "depth_in": 16.5,
+   "height_in": 84,
+   "cols": 11,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    8,
+    53.5,
+    1685,
+    1701.5
+   ]
+  },
+  {
+   "key": "B1",
+   "shelf_id": "shf-kpb33bdc",
+   "name": "B1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 119,
+   "y_in": 1737,
+   "width_in": 63,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 16,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    119,
+    182,
+    1685,
+    1737
+   ]
+  },
+  {
+   "key": "B2",
+   "shelf_id": "shf-w44rvf79",
+   "name": "B2",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 182,
+   "y_in": 1737,
+   "width_in": 63.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 16,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    182,
+    245.5,
+    1685,
+    1737
+   ]
+  },
+  {
+   "key": "B3",
+   "shelf_id": "shf-g6f3ts2y",
+   "name": "B3",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 245.5,
+   "y_in": 1737,
+   "width_in": 65,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 16,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    245.5,
+    310.5,
+    1685,
+    1737
+   ]
+  },
+  {
+   "key": "B4",
+   "shelf_id": "shf-g73jsysr",
+   "name": "B4",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 310.5,
+   "y_in": 1737,
+   "width_in": 72.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 18,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    310.5,
+    383,
+    1685,
+    1737
+   ]
+  },
+  {
+   "key": "B5",
+   "shelf_id": "shf-3wd9ra3c",
+   "name": "B5",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 383,
+   "y_in": 1737,
+   "width_in": 87,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    383,
+    470,
+    1685,
+    1737
+   ]
+  },
+  {
+   "key": "C1",
+   "shelf_id": "shf-6grqk32t",
+   "name": "C1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 78,
+   "y_in": 1899.5,
+   "width_in": 69.5,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 17,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    8.5,
+    78,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "C2",
+   "shelf_id": "shf-p8y59sb3",
+   "name": "C2",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 156,
+   "y_in": 1899.5,
+   "width_in": 78,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    78,
+    156,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "C3",
+   "shelf_id": "shf-pezwrw2e",
+   "name": "C3",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 236,
+   "y_in": 1899.5,
+   "width_in": 80,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    156,
+    236,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "C4",
+   "shelf_id": "shf-8cs68ecm",
+   "name": "C4",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 325,
+   "y_in": 1899.5,
+   "width_in": 89,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    236,
+    325,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "C5",
+   "shelf_id": "shf-fx9snavs",
+   "name": "C5",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 402.5,
+   "y_in": 1899.5,
+   "width_in": 77.5,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 19,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    325,
+    402.5,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "C6",
+   "shelf_id": "shf-vzbrvbmr",
+   "name": "C6",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 470.5,
+   "y_in": 1899.5,
+   "width_in": 68,
+   "depth_in": 45.5,
+   "height_in": 84,
+   "cols": 17,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    402.5,
+    470.5,
+    1899.5,
+    1945
+   ]
+  },
+  {
+   "key": "D1",
+   "shelf_id": "shf-j2hdazen",
+   "name": "D1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 254.5,
+   "y_in": 1772.5,
+   "width_in": 88,
+   "depth_in": 34,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    166.5,
+    254.5,
+    1772.5,
+    1806.5
+   ]
+  },
+  {
+   "key": "D2",
+   "shelf_id": "shf-hh44pduh",
+   "name": "D2",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 330.5,
+   "y_in": 1772.5,
+   "width_in": 76,
+   "depth_in": 34,
+   "height_in": 84,
+   "cols": 19,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    254.5,
+    330.5,
+    1772.5,
+    1806.5
+   ]
+  },
+  {
+   "key": "D3",
+   "shelf_id": "shf-bxyhncyj",
+   "name": "D3",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 411,
+   "y_in": 1772.5,
+   "width_in": 80.5,
+   "depth_in": 34,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    330.5,
+    411,
+    1772.5,
+    1806.5
+   ]
+  },
+  {
+   "key": "D4",
+   "shelf_id": "shf-tpw8qcht",
+   "name": "D4",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 470,
+   "y_in": 1772.5,
+   "width_in": 59,
+   "depth_in": 34,
+   "height_in": 84,
+   "cols": 15,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    411,
+    470,
+    1772.5,
+    1806.5
+   ]
+  },
+  {
+   "key": "E1",
+   "shelf_id": "shf-sr6hb86u",
+   "name": "E1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 166.5,
+   "y_in": 1851.5,
+   "width_in": 88,
+   "depth_in": 45,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    166.5,
+    254.5,
+    1806.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "E2",
+   "shelf_id": "shf-rz5tf279",
+   "name": "E2",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 254.5,
+   "y_in": 1851.5,
+   "width_in": 76,
+   "depth_in": 45,
+   "height_in": 84,
+   "cols": 19,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    254.5,
+    330.5,
+    1806.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "E3",
+   "shelf_id": "shf-6yvsrqv4",
+   "name": "E3",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 330.5,
+   "y_in": 1851.5,
+   "width_in": 80.5,
+   "depth_in": 45,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    330.5,
+    411,
+    1806.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "E4",
+   "shelf_id": "shf-ucpq4ddw",
+   "name": "E4",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 411,
+   "y_in": 1851.5,
+   "width_in": 59,
+   "depth_in": 45,
+   "height_in": 84,
+   "cols": 15,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    411,
+    470,
+    1806.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "F1",
+   "shelf_id": "shf-ssj7pzad",
+   "name": "F1",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 90,
+   "x_in": 131,
+   "y_in": 1772.5,
+   "width_in": 79,
+   "depth_in": 35.5,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    131,
+    166.5,
+    1772.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "G1",
+   "shelf_id": "shf-c8rtwvsp",
+   "name": "G1",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 302.5,
+   "y_in": 1629,
+   "width_in": 85.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    217,
+    302.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G2",
+   "shelf_id": "shf-k9apv9ey",
+   "name": "G2",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 386.5,
+   "y_in": 1629,
+   "width_in": 84,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    302.5,
+    386.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G3",
+   "shelf_id": "shf-hg9jrqbw",
+   "name": "G3",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 468.5,
+   "y_in": 1629,
+   "width_in": 82,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    386.5,
+    468.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G4",
+   "shelf_id": "shf-wae33vdw",
+   "name": "G4",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 550.5,
+   "y_in": 1629,
+   "width_in": 82,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    468.5,
+    550.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G5",
+   "shelf_id": "shf-gbwab54y",
+   "name": "G5",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 633,
+   "y_in": 1629,
+   "width_in": 82.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    550.5,
+    633,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G6",
+   "shelf_id": "shf-zwfuh796",
+   "name": "G6",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 720.5,
+   "y_in": 1629,
+   "width_in": 87.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    633,
+    720.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G7",
+   "shelf_id": "shf-397rnced",
+   "name": "G7",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 819.5,
+   "y_in": 1629,
+   "width_in": 99,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 25,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    720.5,
+    819.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G8",
+   "shelf_id": "shf-6ggm3xpw",
+   "name": "G8",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 919,
+   "y_in": 1629,
+   "width_in": 99.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 25,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    819.5,
+    919,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "G9",
+   "shelf_id": "shf-fd5hsa7w",
+   "name": "G9",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 1017.5,
+   "y_in": 1629,
+   "width_in": 98.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 25,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    919,
+    1017.5,
+    1629,
+    1681
+   ]
+  },
+  {
+   "key": "H1",
+   "shelf_id": "shf-reg3b6uv",
+   "name": "H1",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 320,
+   "y_in": 1504,
+   "width_in": 41,
+   "depth_in": 13,
+   "height_in": 84,
+   "cols": 10,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    320,
+    361,
+    1491,
+    1504
+   ]
+  },
+  {
+   "key": "H2",
+   "shelf_id": "shf-t8fgk96d",
+   "name": "H2",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 410,
+   "y_in": 1504,
+   "width_in": 32.5,
+   "depth_in": 13,
+   "height_in": 84,
+   "cols": 8,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    410,
+    442.5,
+    1491,
+    1504
+   ]
+  },
+  {
+   "key": "H3",
+   "shelf_id": "shf-hcgq5uyr",
+   "name": "H3",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 90,
+   "x_in": 451.5,
+   "y_in": 1491,
+   "width_in": 41,
+   "depth_in": 16,
+   "height_in": 84,
+   "cols": 10,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. Drawn as a boxed S with its long side running north-south; front assumed to face west, confirm.",
+   "bbox": [
+    451.5,
+    467.5,
+    1491,
+    1532
+   ]
+  },
+  {
+   "key": "H4",
+   "shelf_id": "shf-sev7w8bz",
+   "name": "H4",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 525,
+   "y_in": 1547,
+   "width_in": 86,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 22,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    525,
+    611,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "H5",
+   "shelf_id": "shf-n9r4z5vq",
+   "name": "H5",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 611,
+   "y_in": 1547,
+   "width_in": 80,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    611,
+    691,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "H6",
+   "shelf_id": "shf-tqqn988n",
+   "name": "H6",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 691,
+   "y_in": 1547,
+   "width_in": 81.5,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    691,
+    772.5,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "H7",
+   "shelf_id": "shf-sc6fj2x4",
+   "name": "H7",
+   "room_no": "121",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 772.5,
+   "y_in": 1547,
+   "width_in": 81,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    772.5,
+    853.5,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "H8",
+   "shelf_id": "shf-xyrpvcve",
+   "name": "H8",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 853.5,
+   "y_in": 1547,
+   "width_in": 85,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 21,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    853.5,
+    938.5,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "H9",
+   "shelf_id": "shf-azr3n64x",
+   "name": "H9",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 938.5,
+   "y_in": 1547,
+   "width_in": 78,
+   "depth_in": 56,
+   "height_in": 84,
+   "cols": 20,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    938.5,
+    1016.5,
+    1491,
+    1547
+   ]
+  },
+  {
+   "key": "J1",
+   "shelf_id": "shf-2gh32dg9",
+   "name": "J1",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 1018,
+   "y_in": 1439,
+   "width_in": 46.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 12,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    971.5,
+    1018,
+    1439,
+    1491
+   ]
+  },
+  {
+   "key": "J2",
+   "shelf_id": "shf-3z3avbrq",
+   "name": "J2",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 971.5,
+   "y_in": 1439,
+   "width_in": 47.5,
+   "depth_in": 52,
+   "height_in": 84,
+   "cols": 12,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified",
+   "bbox": [
+    924,
+    971.5,
+    1439,
+    1491
+   ]
+  },
+  {
+   "key": "K1",
+   "shelf_id": "shf-h723tzrj",
+   "name": "K1",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 90,
+   "x_in": 1135.5,
+   "y_in": 1406.5,
+   "width_in": 27.5,
+   "depth_in": 38,
+   "height_in": 84,
+   "cols": 7,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. Facing direction not shown on the sketch; assumed west, confirm.",
+   "bbox": [
+    1135.5,
+    1173.5,
+    1406.5,
+    1434
+   ]
+  },
+  {
+   "key": "L1",
+   "shelf_id": "shf-3hxyvexp",
+   "name": "L1",
+   "room_no": "123",
+   "kind": "shelving",
+   "rotation_deg": 90,
+   "x_in": 1173.5,
+   "y_in": 1205,
+   "width_in": 229,
+   "depth_in": 25.5,
+   "height_in": 84,
+   "cols": 57,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 4,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 1,
+     "row_label": "1",
+     "elevation_in": 20,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 2,
+     "row_label": "2",
+     "elevation_in": 36,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 3,
+     "row_label": "3",
+     "elevation_in": 52,
+     "clear_height_in": 15
+    },
+    {
+     "row_index": 4,
+     "row_label": "4",
+     "elevation_in": 68,
+     "clear_height_in": 16
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. One S on a single long pencil strip along the east wall; may be several units, confirm.",
+   "bbox": [
+    1173.5,
+    1199,
+    1205,
+    1434
+   ]
+  },
+  {
+   "key": "SALT",
+   "shelf_id": "shf-jtrzp46u",
+   "name": "SALT",
+   "room_no": "121",
+   "kind": "floor_area",
+   "rotation_deg": 0,
+   "x_in": 471.5,
+   "y_in": 1549.5,
+   "width_in": 53.5,
+   "depth_in": 58.5,
+   "height_in": 48,
+   "cols": 13,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "G",
+     "elevation_in": 0,
+     "clear_height_in": 48
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. Salt pallet (dashed outline on the sketch).",
+   "bbox": [
+    471.5,
+    525,
+    1491,
+    1549.5
+   ]
+  },
+  {
+   "key": "E4H",
+   "shelf_id": "shf-caackbzb",
+   "name": "E4H",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 0,
+   "x_in": 427.5,
+   "y_in": 1851.5,
+   "width_in": 42.5,
+   "depth_in": 45,
+   "height_in": 96,
+   "cols": 11,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "1",
+     "elevation_in": 72,
+     "clear_height_in": 11
+    },
+    {
+     "row_index": 1,
+     "row_label": "2",
+     "elevation_in": 84,
+     "clear_height_in": 12
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. placeholder elevation, measure. Hanging storage above E4 (hatched on the sketch).",
+   "bbox": [
+    427.5,
+    470,
+    1806.5,
+    1851.5
+   ]
+  },
+  {
+   "key": "C6H",
+   "shelf_id": "shf-evcrk8xe",
+   "name": "C6H",
+   "room_no": "120",
+   "kind": "shelving",
+   "rotation_deg": 180,
+   "x_in": 470,
+   "y_in": 1851.5,
+   "width_in": 42,
+   "depth_in": 48,
+   "height_in": 96,
+   "cols": 11,
+   "rows": [
+    {
+     "row_index": 0,
+     "row_label": "1",
+     "elevation_in": 72,
+     "clear_height_in": 11
+    },
+    {
+     "row_index": 1,
+     "row_label": "2",
+     "elevation_in": 84,
+     "clear_height_in": 12
+    }
+   ],
+   "notes": "traced from sketch, dimensions unverified. placeholder elevation, measure. Hatched block sits over the aisle between E4 and C6, not over a traced shelf: needs confirmation.",
+   "bbox": [
+    428,
+    470,
+    1851.5,
+    1899.5
+   ]
+  }
+ ],
+ "areas": [
+  {
+   "key": "TOOLS",
+   "name": "TOOLS",
+   "kind": "tools",
+   "poly": [
+    [
+     1018,
+     1436
+    ],
+    [
+     1201,
+     1436
+    ],
+    [
+     1201,
+     1683
+    ],
+    [
+     1018,
+     1683
+    ]
+   ],
+   "notes": "Clickable floor area inside FABRICATION 123. Traced from a sketch, UNVERIFIED."
+  },
+  {
+   "key": "PACKOUTS",
+   "name": "PACKOUTS",
+   "kind": "packouts",
+   "poly": [
+    [
+     0,
+     1467
+    ],
+    [
+     61,
+     1467
+    ],
+    [
+     61,
+     1648
+    ],
+    [
+     0,
+     1648
+    ]
+   ],
+   "notes": "Clickable floor area inside STORAGE - PARTS & TOOLS 121. Traced from a sketch, UNVERIFIED."
+  }
+ ],
+ "openings": [
+  {
+   "id": "opn-gqgjbhh4",
+   "tag": "121-120",
+   "from": {
+    "x1_in": 381.5,
+    "y1_in": 1683,
+    "x2_in": 421.5,
+    "y2_in": 1683,
+    "notes": "About 3'-4\" between 121 and 120. Position UNVERIFIED"
+   },
+   "to": {
+    "x1_in": 60.5,
+    "y1_in": 1683,
+    "x2_in": 111.5,
+    "y2_in": 1683,
+    "notes": "Moved to the west end: on the sketch the printed opening (X 381.5-421.5) is filled in and the wall at X 60.5-111.5 is taped out. Position UNVERIFIED"
+   }
+  },
+  {
+   "id": "opn-zh5zkdtw",
+   "tag": "8'",
+   "from": {
+    "x1_in": 218.5,
+    "y1_in": 1443,
+    "x2_in": 314.5,
+    "y2_in": 1443,
+    "notes": "Printed 8' at the stub wall"
+   },
+   "to": {
+    "x1_in": 110.5,
+    "y1_in": 1443,
+    "x2_in": 279,
+    "y2_in": 1443,
+    "notes": "Widened from the sketch: the stub wall is taped out from X 110.5, and a short wall is drawn at X 279-314.5 against 122. Printed 8' at the stub wall. Position UNVERIFIED"
+   }
+  }
+ ],
+ "saltSlot": "slt-hrhtdd9f",
+ "zoneIds": {
+  "TOOLS": "zon-4zbmay56",
+  "PACKOUTS": "zon-edscmkeq"
+ }
+}

@@ -44,7 +44,7 @@ const REQUIRED_COLUMNS: Record<string, string> = {
   parts:
     'part_id part_code part_name active version created_at updated_at category description department unit cost sale_price reorder_point width_in height_in depth_in weight_lb aliases',
   warehouse_meta: 'id revision updated_at',
-  zones: 'zone_id name room_no polygon_in open_edges wall_height_in notes verified version active',
+  zones: 'zone_id name room_no polygon_in open_edges wall_height_in notes verified version active area_kind',
   openings: 'opening_id kind tag x1_in y1_in x2_in y2_in height_in zone_id notes verified version active',
   shelves:
     'shelf_id name zone_id kind x_in y_in rotation_deg width_in depth_in height_in cols wall_ref notes version active location_type',

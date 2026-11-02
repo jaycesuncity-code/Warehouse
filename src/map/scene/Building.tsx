@@ -7,13 +7,14 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Opening, Zone } from "../../shared/contract";
 import { DEFAULT_WALL_HEIGHT_IN, FOOTPRINT_Y_IN } from "../units";
-import { select } from "../actions";
+import { openArea, select } from "../actions";
 import { UNVERIFIED, zoneColor } from "../colors";
 import { buildWalls } from "../geometry";
-import { editing, isAdmin, useMap } from "../store";
+import { editing, getMap, isAdmin, useMap } from "../store";
 import { segmentBoxMatrix, UNIT_BOX } from "./common";
 
 const CUTAWAY_IN = 36;
+const AREA_COLOR: Record<NonNullable<Zone["area_kind"]>, string> = { tools: "#F59E0B", packouts: "#0EA5E9" };
 
 function ZoneFloor({
   zone,
@@ -36,22 +37,23 @@ function ZoneFloor({
     () => [...zone.polygon_in, zone.polygon_in[0]].map(([x, y]) => new THREE.Vector3(x, 0.6, y)),
     [zone.polygon_in],
   );
+  const area = !!zone.area_kind;
   return (
     <group>
       <mesh
         geometry={geom}
-        position={[0, 0.05, 0]}
+        position={[0, area ? 0.15 : 0.05, 0]}
         name={`zone:${zone.name}`}
-        userData={{ zone_id: zone.zone_id }}
+        userData={{ zone_id: zone.zone_id, area_kind: zone.area_kind ?? null }}
         onClick={onSelect}
-        renderOrder={-1}
+        renderOrder={area ? 0 : -1}
       >
         <meshStandardMaterial
           color={color}
           roughness={1}
           metalness={0}
           transparent
-          opacity={highlight ? 0.75 : 0.55}
+          opacity={highlight || area ? 0.75 : 0.55}
           depthWrite={false}
         />
       </mesh>
@@ -199,8 +201,21 @@ export function Building() {
     e.stopPropagation();
     fn();
   };
+  // Tools / Packouts areas open their panel for every role. Admins editing keep the zone editor,
+  // and an active edit tool (add shelf, move part) still gets the floor click.
+  const pickArea = (z: Zone) => (e: ThreeEvent<MouseEvent>) => {
+    if (adminEdit) return pick(() => select({ kind: "zone", id: z.zone_id }))(e);
+    if (e.delta > 4) return;
+    const s = getMap();
+    if (editing(s) && s.tool) return;
+    if (e.intersections.some((i) => i.object.name === "shelf-hits" || i.object.name.startsWith("handle"))) return;
+    e.stopPropagation();
+    openArea(z.zone_id);
+  };
   const tint = (z: Zone) =>
-    unverifiedOnly || colorBy === "unverified"
+    z.area_kind
+      ? AREA_COLOR[z.area_kind]
+      : unverifiedOnly || colorBy === "unverified"
       ? z.verified
         ? "#E5E7EB"
         : "#FCD9A6"
@@ -213,7 +228,7 @@ export function Building() {
           zone={z}
           color={tint(z)}
           highlight={sel?.kind === "zone" && sel.id === z.zone_id}
-          onSelect={pick(() => select({ kind: "zone", id: z.zone_id }))}
+          onSelect={z.area_kind ? pickArea(z) : pick(() => select({ kind: "zone", id: z.zone_id }))}
         />
       ))}
       <Walls zones={zones} openings={openings} cutaway={cutaway} xray={viewOpts.xray} />

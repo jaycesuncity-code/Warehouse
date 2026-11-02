@@ -463,6 +463,60 @@ test.describe("roles", () => {
   });
 });
 
+/** Click the middle of a floor area in the plan and wait for its camera fly-in to settle. */
+async function clickArea(page: Page, x: number, y: number) {
+  const p = await page.evaluate(([ax, ay]) => window.__mapDebug.project(ax, ay, 0), [x, y]);
+  await page.mouse.click(p.x, p.y);
+}
+
+test.describe("Tools and Packouts areas", () => {
+  const TOOLS = { x: (1018 + 1201) / 2, y: (1436 + 1683) / 2 };
+  const PACKOUTS = { x: 61 / 2, y: (1467 + 1648) / 2 };
+  for (const role of ["viewer", "editor"] as const) {
+    test(`${role}: clicking an area zooms to it and opens its panel`, async ({ page }) => {
+      await open(page, "/map/", role);
+      const zoomBefore = (await page.evaluate(() => window.__mapDebug.camera())).zoom;
+      await clickArea(page, TOOLS.x, TOOLS.y);
+      await expect(page.getByTestId("area-panel-tools")).toBeVisible();
+      await expect(page.getByTestId("area-name")).toHaveText("TOOLS");
+      await expect(page.getByTestId("area-tools-placeholder")).toHaveText("Contents coming soon");
+      await expect(page.getByTestId("zone-inspector")).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const c = await page.evaluate(() => window.__mapDebug.camera());
+          return Math.hypot(c.target[0] - TOOLS.x, c.target[2] - TOOLS.y) < 24 && c.zoom > zoomBefore * 1.5;
+        })
+        .toBe(true);
+      await page.locator("header").click();
+      await page.keyboard.press("f");
+      await page.waitForTimeout(900);
+      await clickArea(page, PACKOUTS.x, PACKOUTS.y);
+      await expect(page.getByTestId("area-panel-packouts")).toBeVisible();
+      await expect(page.getByTestId("area-name")).toHaveText("PACKOUTS");
+      await expect(page.getByTestId("packouts-empty")).toHaveText("No kits yet.");
+      await expect(page.getByTestId("packouts-link")).toHaveAttribute("href", "../packouts/");
+      await expect
+        .poll(async () => {
+          const c = await page.evaluate(() => window.__mapDebug.camera());
+          return Math.hypot(c.target[0] - PACKOUTS.x, c.target[2] - PACKOUTS.y) < 24;
+        })
+        .toBe(true);
+      // Areas are overlays: no walls and no change to the stored layout.
+      expect((await db(page)).zones.filter((z) => z.area_kind).every((z) => z.open_edges.length === 4)).toBe(true);
+      await shot(page, `areas-${role}-1280`);
+    });
+  }
+
+  test("phone viewer: tapping Packouts opens its kit list in the details sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, "/map/", "viewer");
+    await clickArea(page, PACKOUTS.x, PACKOUTS.y);
+    await expect(page.getByTestId("sheet-inspector")).toBeVisible();
+    await expect(page.getByTestId("area-panel-packouts")).toBeVisible();
+    await expect(page.getByTestId("packouts-empty")).toBeVisible();
+  });
+});
+
 test.describe("editing flows (mock mode)", () => {
   test("add, place from wall, rotate, undo/redo, duplicate, delete, rows/cols, slots, bins, parts, conflicts", async ({
     page,

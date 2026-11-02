@@ -40,8 +40,18 @@ const zoneDefs = [
 ];
 const zones = zoneDefs.map(([name, room_no, polygon_in, open_edges, notes]) => ({
   zone_id: id("zon"), name, room_no, polygon_in, open_edges, wall_height_in: null, notes, verified: false, version: 1,
+  area_kind: null,
 }));
 const zoneByRoom = Object.fromEntries(zones.map((z) => [z.room_no || "NOLABEL", z]));
+// Clickable floor areas (no walls). Fixed IDs, minted outside id() so the generated sequence is unchanged.
+zones.push(
+  { zone_id: "zon-4zbmay56", name: "TOOLS", room_no: null, polygon_in: [[1018, 1436], [1201, 1436], [1201, 1683], [1018, 1683]],
+    open_edges: [0, 1, 2, 3], wall_height_in: null, notes: "Clickable floor area inside FABRICATION 123. Traced from a sketch, UNVERIFIED.",
+    verified: false, version: 1, area_kind: "tools" },
+  { zone_id: "zon-edscmkeq", name: "PACKOUTS", room_no: null, polygon_in: [[0, 1467], [61, 1467], [61, 1648], [0, 1648]],
+    open_edges: [0, 1, 2, 3], wall_height_in: null, notes: "Clickable floor area inside STORAGE - PARTS & TOOLS 121. Traced from a sketch, UNVERIFIED.",
+    verified: false, version: 1, area_kind: "packouts" },
+);
 
 // ---------------- Openings (contract §9) ----------------
 const W = zoneByRoom["126"].zone_id;

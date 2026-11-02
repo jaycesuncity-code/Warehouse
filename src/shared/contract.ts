@@ -37,6 +37,9 @@ export type LocationType = 'primary' | 'overstock' | 'packout';
 export type ShelfKind = 'shelving' | 'pallet_rack' | 'cabinet' | 'bench' | 'floor_area';
 export type BinType = 'bin' | 'box' | 'tote' | 'loose' | 'drawer';
 export type OpeningKind = 'door' | 'overhead' | 'opening';
+/** A clickable floor area (no walls) drawn inside a room. Null for ordinary rooms. */
+export type AreaKind = 'tools' | 'packouts';
+export const AREA_KINDS: readonly AreaKind[] = ['tools', 'packouts'];
 
 /** A point in map inches: [x, y]. */
 export type Point = [number, number];
@@ -61,6 +64,8 @@ export interface Zone {
   notes: string;
   verified: boolean;
   version: number;
+  /** Set for clickable floor areas (Tools, Packouts); these list every edge in open_edges. */
+  area_kind: AreaKind | null;
 }
 
 export interface Opening {
@@ -495,7 +500,7 @@ export type ZoneInput = Pick<
   Zone,
   'name' | 'room_no' | 'polygon_in' | 'open_edges' | 'wall_height_in' | 'notes'
 > &
-  Partial<Pick<Zone, 'verified'>>;
+  Partial<Pick<Zone, 'verified' | 'area_kind'>>;
 export type PatchZoneRequest = Partial<ZoneInput> & { version: number };
 export interface ZoneMutationResponse extends MutationBase {
   zone: Zone;

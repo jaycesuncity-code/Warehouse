@@ -1,5 +1,7 @@
 /** Zones and openings: building geometry. Reads are open to everyone, writes are admin-only (router enforces). */
 import {
+  AREA_KINDS,
+  type AreaKind,
   DEFAULT_DOOR_HEIGHT_IN,
   DEFAULT_OVERHEAD_HEIGHT_IN,
   type OpeningInput,
@@ -42,6 +44,13 @@ function readOpenEdges(v: unknown, corners: number): number[] {
   return v as number[];
 }
 
+function readAreaKind(v: unknown): AreaKind | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== 'string' || !AREA_KINDS.includes(v as AreaKind))
+    throw validation({ area_kind: `Use one of ${AREA_KINDS.join(', ')}, or leave it unset.` });
+  return v as AreaKind;
+}
+
 const findZone = (c: Parameters<Handler>[0], id: string): ZoneRec => {
   const z = c.state.zones.find((x) => x.active && x.zone_id === id);
   if (!z) throw notFound('That zone');
@@ -62,6 +71,7 @@ export const createZone: Handler = (c) => {
     notes: readText(b.notes ?? '', 'notes'),
     verified: readBoolean(b.verified, 'verified'),
     version: 1,
+    area_kind: readAreaKind(b.area_kind),
     active: true,
   };
   c.tx.insert('zones', zone);
@@ -90,6 +100,7 @@ export const patchZone: Handler = (c) => {
         : requireNumber(b.wall_height_in, 'wall_height_in', { positive: true });
   if (b.notes !== undefined) next.notes = readText(b.notes, 'notes');
   if (b.verified !== undefined) next.verified = readBoolean(b.verified, 'verified');
+  if (b.area_kind !== undefined) next.area_kind = readAreaKind(b.area_kind);
   c.tx.update('zones', zone, (z) => Object.assign(z, next));
   const ev = c.tx.finish('edit', 'zone', zone.zone_id);
   return ok({ event_id: ev.event_id, zone: strip(zone) });

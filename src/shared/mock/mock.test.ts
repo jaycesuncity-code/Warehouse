@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- loose response bodies in test helpers */
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { ApiErrorBody, Layout, LayoutSlot, Location, Part, Role, Shelf, ShelfRow } from '../contract';
+import type { ApiErrorBody, Layout, LayoutSlot, Location, Part, Role, Shelf, ShelfRow, Zone } from '../contract';
 import { withinGrid, rectsOverlap } from '../grid';
 import { isEventId, isPartId, isShelfId, isSlotId, isZoneId } from '../ids';
 import { shelfCorners } from '../units';
@@ -121,7 +121,11 @@ beforeEach(() => {
 describe('demo dataset', () => {
   it('matches contract section 9: zones, openings, shelves', () => {
     const zones = Object.fromEntries(DEMO_DATA.zones.map((z) => [z.name, z]));
-    expect(Object.keys(zones)).toHaveLength(9);
+    // Nine rooms plus the Tools and Packouts floor areas (no walls).
+    expect(Object.keys(zones)).toHaveLength(11);
+    expect(DEMO_DATA.zones.filter((z) => !z.area_kind)).toHaveLength(9);
+    expect(zones['TOOLS']).toMatchObject({ area_kind: 'tools', open_edges: [0, 1, 2, 3] });
+    expect(zones['PACKOUTS']).toMatchObject({ area_kind: 'packouts', open_edges: [0, 1, 2, 3] });
     expect(zones['WAREHOUSE 126'].polygon_in).toEqual([
       [0, 0],
       [483, 0],
@@ -1023,7 +1027,8 @@ describe('layout', () => {
   it('returns zones, openings and shelves with aggregate slot data and an ETag', () => {
     const res = get<Layout>('/api/layout');
     expect(res.headers.ETag).toBe(`"${res.body.layout_version}"`);
-    expect(res.body.zones).toHaveLength(9);
+    expect(res.body.zones).toHaveLength(11);
+    expect(res.body.zones.filter((z) => z.area_kind === null)).toHaveLength(9);
     expect(res.body.openings).toHaveLength(18);
     expect(res.body.shelves.map((s) => s.name)).toEqual(['A1', 'A2', 'B1', 'F1']);
     expect(res.body.shelves[0]).not.toHaveProperty('active');
@@ -1066,7 +1071,7 @@ describe('layout', () => {
 
 describe('zones and openings', () => {
   it('lists, creates, and patches with version checks (admin)', () => {
-    expect(get<{ items: unknown[] }>('/api/zones').body.items).toHaveLength(9);
+    expect(get<{ items: unknown[] }>('/api/zones').body.items).toHaveLength(11);
     expect(get<{ items: unknown[] }>('/api/openings').body.items).toHaveLength(18);
     const zone = DEMO_DATA.zones[0];
     const stale = call('PATCH', `/api/zones/${zone.zone_id}`, { version: 5, verified: true }, 'admin');
@@ -1100,6 +1105,39 @@ describe('zones and openings', () => {
     expect(
       post('/api/openings', { kind: 'gate', x1_in: 0, y1_in: 0, x2_in: 0, y2_in: 1 }, 'admin').status,
     ).toBe(400);
+  });
+
+  it('creates and patches area_kind, defaulting to an ordinary room', () => {
+    const square = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const room = post<{ zone: Zone }>('/api/zones', { name: 'Plain room', polygon_in: square }, 'admin');
+    expect(room.status).toBe(201);
+    expect(room.body.zone.area_kind).toBeNull();
+    const area = post<{ zone: Zone }>(
+      '/api/zones',
+      { name: 'Tool crib', polygon_in: square, open_edges: [0, 1, 2, 3], area_kind: 'tools' },
+      'admin',
+    );
+    expect(area.body.zone).toMatchObject({ area_kind: 'tools', open_edges: [0, 1, 2, 3] });
+    expect(
+      post('/api/zones', { name: 'Bad area', polygon_in: square, area_kind: 'office' }, 'admin').status,
+    ).toBe(400);
+    const patched = call<{ zone: Zone }>(
+      'PATCH',
+      `/api/zones/${area.body.zone.zone_id}`,
+      { version: 1, area_kind: 'packouts' },
+      'admin',
+    );
+    expect(patched.body.zone).toMatchObject({ area_kind: 'packouts', version: 2 });
+    const cleared = call<{ zone: Zone }>(
+      'PATCH',
+      `/api/zones/${area.body.zone.zone_id}`,
+      { version: 2, area_kind: null },
+      'admin',
+    );
+    expect(cleared.body.zone.area_kind).toBeNull();
+    expect(
+      call('PATCH', `/api/zones/${area.body.zone.zone_id}`, { version: 3, area_kind: 'tools' }, 'editor').status,
+    ).toBe(403);
   });
 });
 

@@ -322,6 +322,12 @@ export function select(sel: Selection, opts: { fly?: boolean; front?: boolean; l
   }
 }
 
+/** Tools / Packouts floor areas: any role, any view. Zooms to the area and opens its panel. */
+export function openArea(zoneId: string) {
+  select({ kind: "zone", id: zoneId }, { fly: true });
+  setMap({ mobilePanel: "inspector" });
+}
+
 export function openFrontView(open = true) {
   setMap({ frontViewOpen: open });
 }

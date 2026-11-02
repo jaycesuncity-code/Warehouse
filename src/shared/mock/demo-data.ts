@@ -53,6 +53,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: 'No high-pile storage allowed. 40\'-3" x 100\'-3".',
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-2wyz9uek',
@@ -69,6 +70,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: '12\'-10" x 20\'-5". Plan callout says 12\'-11 1/2" wide: UNVERIFIED.',
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-3fqmd5aw',
@@ -85,6 +87,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: '12\'-10" x 15\'-3", reached by door 40. Name UNVERIFIED.',
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-mde8e9ad',
@@ -101,6 +104,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: "30' x 35'-8\". South side open to 123.",
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-stpmnu3u',
@@ -117,6 +121,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: "17' x 35'-8\". Exterior. Open sides UNVERIFIED.",
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-25e797xp',
@@ -140,6 +145,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: "One open floor shared with 121. Edge 0 is a stub wall with an 8' opening.",
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-u4jjnjzs',
@@ -156,6 +162,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: '45\'-8" x 7\'-8" walled enclosure inside 123.',
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-xrb3s5kk',
@@ -174,6 +181,7 @@ export const DEMO_DATA: DemoDataset = {
       notes: 'L-shape. East side and stub-wall position UNVERIFIED.',
       verified: false,
       version: 1,
+      area_kind: null,
     },
     {
       zone_id: 'zon-wfnhb9gu',
@@ -190,6 +198,41 @@ export const DEMO_DATA: DemoDataset = {
       notes: "39'-11 1/2\" x 22'.",
       verified: false,
       version: 1,
+      area_kind: null,
+    },
+    {
+      zone_id: 'zon-4zbmay56',
+      name: 'TOOLS',
+      room_no: null,
+      polygon_in: [
+        [1018, 1436],
+        [1201, 1436],
+        [1201, 1683],
+        [1018, 1683],
+      ],
+      open_edges: [0, 1, 2, 3],
+      wall_height_in: null,
+      notes: 'Clickable floor area inside FABRICATION 123. Traced from a sketch, UNVERIFIED.',
+      verified: false,
+      version: 1,
+      area_kind: 'tools',
+    },
+    {
+      zone_id: 'zon-edscmkeq',
+      name: 'PACKOUTS',
+      room_no: null,
+      polygon_in: [
+        [0, 1467],
+        [61, 1467],
+        [61, 1648],
+        [0, 1648],
+      ],
+      open_edges: [0, 1, 2, 3],
+      wall_height_in: null,
+      notes: 'Clickable floor area inside STORAGE - PARTS & TOOLS 121. Traced from a sketch, UNVERIFIED.',
+      verified: false,
+      version: 1,
+      area_kind: 'packouts',
     },
   ],
   openings: [

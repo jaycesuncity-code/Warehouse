@@ -64,7 +64,7 @@ export async function replaySnapshot(snapshot: Layout, current: Layout, client: 
       if (existing) return client.patchZone(existing.zone_id, { ...fields, version: existing.version });
       // A retry after partial success can reuse an identical saved room, without overwriting a namesake.
       const identical = current.zones.find((item) => equalFields(item, fields,
-        ['name', 'room_no', 'polygon_in', 'open_edges', 'wall_height_in', 'notes', 'verified']));
+        ['name', 'room_no', 'polygon_in', 'open_edges', 'wall_height_in', 'notes', 'verified', 'area_kind']));
       return identical ?? (await client.createZone(fields)).zone;
     });
     if (saved) zoneIds.set(zone_id, saved.zone_id);

@@ -66,6 +66,21 @@ describe('snapshot replay through the canonical inventory API', () => {
   });
 
 
+  it('exports and replays Tools / Packouts areas with their area kind', async () => {
+    const current = (await api.getLayout()).layout!;
+    const tools = structuredClone(current.zones.find((item) => item.area_kind === 'tools')!);
+    expect(tools.open_edges).toEqual([0, 1, 2, 3]);
+    const exported = parseSnapshot(JSON.stringify({ format: 'suncity-layout-snapshot', format_version: 1, layout: current }));
+    expect(exported.zones.find((item) => item.zone_id === tools.zone_id)!.area_kind).toBe('tools');
+    tools.zone_id = 'zon-33333333';
+    tools.name = 'Imported tools';
+    const result = await replaySnapshot({ ...current, zones: [tools], openings: [], shelves: [] }, current, api);
+    expect(result.failed).toEqual([]);
+    const saved = loadMockState().zones.find((item) => item.name === 'Imported tools')!;
+    expect(saved).toMatchObject({ area_kind: 'tools', open_edges: [0, 1, 2, 3] });
+    expect(saved.zone_id).not.toBe('zon-33333333');
+  });
+
   it('can retry a completed snapshot without duplicating rooms, shelves, bins, or stock', async () => {
     const { current, snapshot } = await fixture();
     expect((await replaySnapshot(snapshot, current, api)).failed).toEqual([]);

@@ -7,6 +7,7 @@ import type {
   LocationType,
   Opening,
   OpeningKind,
+  Packout,
   Part,
   ShelfKind,
   SlotPartRef,
@@ -1239,6 +1240,77 @@ function ZoneInspector({ z }: { z: Zone }) {
   );
 }
 
+/** Tools / Packouts floor areas, for every role. Admins in Edit mode get the zone editor instead. */
+function AreaPanel({ z }: { z: Zone }) {
+  return (
+    <div data-testid={`area-panel-${z.area_kind}`}>
+      <div className="border-b-4 border-gold bg-maroon px-3 py-2 text-white">
+        <div className="text-lg font-extrabold leading-tight" data-testid="area-name">
+          {z.name}
+        </div>
+        <div className="text-[11px] text-gold-light">{z.area_kind === "tools" ? "Tools area" : "Packout kits"}</div>
+      </div>
+      {z.area_kind === "tools" ? (
+        <p className="px-3 py-3 text-sm text-gray-600" data-testid="area-tools-placeholder">
+          Contents coming soon
+        </p>
+      ) : (
+        <PackoutKits />
+      )}
+    </div>
+  );
+}
+
+function PackoutKits() {
+  const [kits, setKits] = useState<Packout[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .listPackouts()
+      .then((r) => live && setKits(r.items))
+      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : "Could not load kits."));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <Section title="Kits">
+      {error && (
+        <p className="text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
+      {!error && !kits && <p className="text-sm text-gray-500">Loading kits…</p>}
+      {kits && !kits.length && (
+        <p className="text-sm text-gray-600" data-testid="packouts-empty">
+          No kits yet.
+        </p>
+      )}
+      {kits && kits.length > 0 && (
+        <ul className="divide-y divide-gray-100" data-testid="packouts-list">
+          {kits.map((k) => (
+            <li key={k.kit_id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="min-w-0">
+                <span className="block truncate font-semibold">{k.name}</span>
+                <span className="font-mono text-[11px] text-gray-500">{k.location_code}</span>
+              </span>
+              <span
+                className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${k.status === "issued" ? "bg-amber-100 text-amber-950" : "bg-green-100 text-green-950"}`}
+              >
+                {k.status === "issued" ? "Issued" : "Available"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <a className="text-sm font-bold text-maroon underline" href="../packouts/" data-testid="packouts-link">
+        Open Packouts
+      </a>
+    </Section>
+  );
+}
+
 const OPENING_KINDS: OpeningKind[] = ["door", "overhead", "opening"];
 
 function OpeningInspector({ o }: { o: Opening }) {
@@ -1345,6 +1417,7 @@ export function Inspector() {
   const layout = useMap((s) => s.layout);
   const drafts = useMap((s) => s.drafts);
   const editor = useMap(canEdit);
+  const adminEdit = useMap((s) => editing(s) && isAdmin(s));
   if (!layout || !sel)
     return (
       <div className="p-4 text-sm text-gray-600" data-testid="inspector-empty">
@@ -1368,6 +1441,7 @@ export function Inspector() {
   }
   if (sel.kind === "zone") {
     const z = layout.zones.find((x) => x.zone_id === sel.id);
+    if (z?.area_kind && !adminEdit) return <AreaPanel z={z} />;
     return z ? <ZoneInspector z={z} /> : null;
   }
   const o = layout.openings.find((x) => x.opening_id === sel.id);

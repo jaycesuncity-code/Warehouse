@@ -4,8 +4,8 @@
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { LayoutShelf, LayoutSlot } from "../../shared/contract";
-import { slotRect } from "../units";
+import type { LayoutShelf, LayoutSlot, ShelfRow } from "../../shared/contract";
+import { DECK_THICKNESS_IN, slotRect } from "../units";
 import { DECK, SHELF_STEEL, slotColor, zoneColor, type ColorBy } from "../colors";
 import { useMap } from "../store";
 import { capacityFor, shelfBoxMatrix, tmpColor, UNIT_BOX } from "./common";
@@ -46,6 +46,16 @@ export function binBox(
   return { u0: uc - bw / 2, u1: uc + bw / 2, v0: 0.75, v1: 0.75 + bd, h0, h1: h0 + bh };
 }
 
+/** A unit whose lowest deck sits above this is drawn as hanging: its frame stops at that deck. */
+export const HANGING_MIN_IN = 24;
+
+/** Height where a shelf's posts start: the floor, or the underside of a high lowest deck (hanging storage). */
+export function postBaseIn(rows: Pick<ShelfRow, "elevation_in">[]): number {
+  if (!rows.length) return 0;
+  const lowest = Math.min(...rows.map((r) => r.elevation_in));
+  return lowest > HANGING_MIN_IN ? Math.max(0, lowest - DECK_THICKNESS_IN) : 0;
+}
+
 interface Built {
   posts: THREE.Matrix4[];
   decks: THREE.Matrix4[];
@@ -71,10 +81,11 @@ export function buildShelfInstances(
     const W = sh.width_in;
     const D = sh.depth_in;
     const H = sh.height_in;
+    const base = sh.kind !== "floor_area" ? postBaseIn(sh.rows) : 0;
     if (sh.kind !== "floor_area") {
       for (const u of [0.75, W - 0.75])
         for (const v of [0.75, D - 0.75])
-          out.posts.push(shelfBoxMatrix(new THREE.Matrix4(), sh, u - 0.75, u + 0.75, v - 0.75, v + 0.75, 0, H));
+          out.posts.push(shelfBoxMatrix(new THREE.Matrix4(), sh, u - 0.75, u + 0.75, v - 0.75, v + 0.75, base, H));
       for (const r of sh.rows)
         out.decks.push(
           shelfBoxMatrix(
@@ -104,7 +115,7 @@ export function buildShelfInstances(
       out.binColors.push(new THREE.Color(c));
       out.binRefs.push({ shelfId: sh.shelf_id, slotId: sl.slot_id });
     }
-    out.hits.push(shelfBoxMatrix(new THREE.Matrix4(), sh, 0, W, 0, D, 0, Math.max(H, 2)));
+    out.hits.push(shelfBoxMatrix(new THREE.Matrix4(), sh, 0, W, 0, D, base, Math.max(H, base + 2)));
     out.hitIds.push(sh.shelf_id);
   }
   return out;

@@ -246,6 +246,14 @@ describe("walls, walking, fit", () => {
     expect(pieces.find((p) => p.opening.tag === "36")!.lintel).toBeNull();
     expect(pieces.find((p) => p.opening.tag === "40")!.lintel).not.toBeNull();
   });
+  it("adds no walls for Tools / Packouts areas, whose edges are all open", () => {
+    const areas = DEMO_ZONES.filter((z) => z.area_kind);
+    expect(areas.map((z) => z.area_kind).sort()).toEqual(["packouts", "tools"]);
+    for (const z of areas) expect(z.open_edges).toEqual(z.polygon_in.map((_, i) => i));
+    expect(buildWalls(areas, []).walls).toEqual([]);
+    const rooms = DEMO_ZONES.filter((z) => !z.area_kind);
+    expect(buildWalls(DEMO_ZONES, DEMO_OPENINGS)).toEqual(buildWalls(rooms, DEMO_OPENINGS));
+  });
   it("walking can't pass through a wall", () => {
     const segs = [{ a: { x: 0, y: 0 }, b: { x: 0, y: 100 } }];
     const p = collideMove({ x: 20, y: 50 }, { x: -20, y: 50 }, 9, segs);
