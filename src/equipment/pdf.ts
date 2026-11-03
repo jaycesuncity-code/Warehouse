@@ -61,7 +61,8 @@ export function avery5821Pdf(labels: EquipmentLabel[], testPage = false): Blob {
   }
   objects[catalog-1]=`<< /Type /Catalog /Pages ${pagesRoot} 0 R >>`;
   objects[pagesRoot-1]=`<< /Type /Pages /Kids [${pageRefs.map(id=>id+' 0 R').join(' ')}] /Count ${pages} >>`;
-  let raw='%PDF-1.4\n',offsets=[0];
+  let raw='%PDF-1.4\n';
+  const offsets=[0];
   for(let i=0;i<objects.length;i++){
     offsets.push(encoded(raw).length);
     raw+=`${i+1} 0 obj\n${objects[i]}\nendobj\n`;
