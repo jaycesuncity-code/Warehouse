@@ -127,6 +127,22 @@ describe('forward migrations preserve populated warehouse records', () => {
         par_qty: 20,
         version: 9,
       });
+      // A populated parts/geometry warehouse must survive both equipment migrations unchanged.
+      const stockBeforeEquipment = db.prepare('SELECT * FROM stock').all();
+      const partsBeforeEquipment = db.prepare('SELECT * FROM parts ORDER BY part_id').all();
+      const roomsBeforeEquipment = db.prepare('SELECT * FROM zones ORDER BY zone_id').all();
+      db.exec(migration('0006_equipment_foundation.sql'));
+      db.exec(migration('0007_equipment_map_positions.sql'));
+      expect(db.prepare('SELECT * FROM stock').all()).toEqual(stockBeforeEquipment);
+      expect(db.prepare('SELECT * FROM parts ORDER BY part_id').all()).toEqual(partsBeforeEquipment);
+      expect(db.prepare('SELECT * FROM zones ORDER BY zone_id').all()).toEqual(roomsBeforeEquipment);
+      expect(db.prepare("SELECT count(*) AS n FROM customers WHERE is_stock=1 AND active=1").get()).toEqual({n:1});
+      expect(db.prepare("SELECT count(*) AS n FROM equipment_types WHERE active=1").get()).toEqual({n:14});
+      expect(db.prepare('SELECT COUNT(*) AS n FROM equipment').get()).toEqual({n:0});
+      expect(() => db.prepare("INSERT INTO equipment(equipment_id,source,equipment_type_id,customer_id,status,entered_by_email,created_at,updated_at,updated_by_email) VALUES('eqp-22222222','ordered','unknown-type','cus-stk22222','ordered','test@example.com','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z','test@example.com')").run()).toThrow(/FOREIGN KEY/);
+      db.prepare("INSERT INTO equipment(equipment_id,source,equipment_type_id,customer_id,status,entered_by_email,created_at,updated_at,updated_by_email) VALUES('eqp-22222222','ordered','ety-22222222','cus-stk22222','ordered','test@example.com','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z','test@example.com')").run();
+      db.prepare("UPDATE equipment SET marker_x_in=50.5,marker_y_in=100.25,zone_id='zon-22222222' WHERE equipment_id='eqp-22222222'").run();
+      expect(db.prepare("SELECT marker_x_in,marker_y_in,zone_id FROM equipment WHERE equipment_id='eqp-22222222'").get()).toEqual({marker_x_in:50.5,marker_y_in:100.25,zone_id:'zon-22222222'});
       expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
     } finally {
       db.close();
