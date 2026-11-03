@@ -267,7 +267,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const allowedFields=action==='receive'
         ?['serial_number','confirmed_model','zone_id','floor_area_shelf_id','location_note']
         :action==='cancel'?[]
-        :receiver?['customer_id','po_number','requested_by_name','expected_date','vendor','notes','manufacturer','ordered_model','confirmed_model','serial_number','zone_id','floor_area_shelf_id','location_note','status']
+        :receiver?['customer_id','po_number','requested_by_name','expected_date','vendor','notes','manufacturer','ordered_model','confirmed_model','serial_number','zone_id','floor_area_shelf_id','location_note','status','return_reason','return_destination']
          :['customer_id','po_number','requested_by_name','expected_date','vendor','notes','manufacturer','ordered_model'];
       if(Object.keys(changes).some(k=>k!=='version'&&!allowedFields.includes(k)))return fail(400,'validation','Unsupported or unauthorized field.');
       const patch:Row={};
@@ -277,7 +277,25 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       if(patch.serial_number!==undefined)patch.serial_normalized=normalized(patch.serial_number)||null;
       if(action==='receive'){patch.status='received';patch.received_at=now();patch.received_by_email=me.email;}
       if(action==='cancel'){patch.status='cancelled';patch.cancelled_at=now();patch.cancelled_by_email=me.email;}
-      if(patch.status!==undefined && !['ordered','received','in_stock','reserved','installed','delivered','cancelled','returned'].includes(String(patch.status)))return fail(400,'validation','Invalid equipment status.');
+      if(patch.status!==undefined) {
+        const from=String(prior.status),to=String(patch.status);
+        const transitions: Record<string,string[]> = {
+          ordered: [], received:['in_stock','reserved','installed','delivered','returned'],
+          in_stock:['reserved','installed','delivered','returned'],
+          reserved:['in_stock','installed','delivered','returned'],
+          installed:['returned'], delivered:['returned'], returned:[], cancelled:[]
+        };
+        if(action==='edit' && to!==from && !(transitions[from]||[]).includes(to))
+          return fail(409,'status_conflict','This equipment status change is not allowed.');
+        if(action==='edit'&&to==='returned') {
+          const reason=str(patch.return_reason??prior.return_reason,500),destination=str(patch.return_destination??prior.return_destination,30);
+          if(!reason||!['vendor','customer','warehouse'].includes(destination))
+            return fail(400,'validation','Returned equipment requires a reason and destination.');
+        }
+        if(action==='edit'&&['installed','delivered'].includes(to)&&to!==from) {
+          patch.fulfilled_at=now();patch.fulfilled_by_email=me.email;
+        }
+      }
       if(patch.zone_id) {
         const zone=await one(db,'SELECT zone_id FROM zones WHERE zone_id=? AND active=1',patch.zone_id);
         if(!zone)return fail(400,'validation','Location zone does not exist.');
@@ -291,7 +309,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const columns=Object.keys(patch).concat(['version','updated_at','updated_by_email']);
       const st=[sql(db,`UPDATE equipment SET ${columns.map(c=>c+'=?').join(',')} WHERE equipment_id=? AND version=?`,
         ...columns.map(c=>changed[c]),unitId,prior.version),event(db,me,action,'equipment',unitId,prior,changed)];
-      if(action==='receive'){
+      if(action==='receive'||(action==='edit'&&(patch.confirmed_model!==undefined||patch.serial_number!==undefined))){
         if(str(changed.confirmed_model)&&normalized(changed.confirmed_model)!==normalized(changed.ordered_model)) st.push(review(db,me,unitId,'MODEL_MISMATCH',{ordered_model:prior.ordered_model,confirmed_model:changed.confirmed_model}));
         if(changed.serial_normalized){
           const dupes=await list(db,'SELECT equipment_id FROM equipment WHERE equipment_id<>? AND serial_normalized=? AND manufacturer_normalized=? LIMIT 5',unitId,changed.serial_normalized,changed.manufacturer_normalized);
@@ -330,8 +348,13 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
         manufacturer,manufacturer_normalized:normalized(manufacturer),ordered_model:str(body.model,200),confirmed_model:str(body.model,200),
         serial_number:serial,serial_normalized:normalized(serial)||null,status:'received',received_at:timestamp,received_by_email:me.email,
         entered_by_email:me.email,created_at:timestamp,updated_at:timestamp,updated_by_email:me.email};
-      return save([insert(db,'equipment',unit),review(db,me,equipmentId,'UNREGISTERED_RECEIPT',{}),
-       event(db,me,'receive_unregistered','equipment',equipmentId,{},unit)],{unit},201);
+      const statements=[insert(db,'equipment',unit),review(db,me,equipmentId,'UNREGISTERED_RECEIPT',{}),
+        event(db,me,'receive_unregistered','equipment',equipmentId,{},unit)];
+      if(unit.serial_normalized){
+        const same=await list(db,'SELECT equipment_id FROM equipment WHERE manufacturer_normalized=? AND serial_normalized=? LIMIT 5',unit.manufacturer_normalized,unit.serial_normalized);
+        if(same.length)statements.push(review(db,me,equipmentId,'DUPLICATE_SERIAL',{matches:same.map(r=>r.equipment_id)}));
+      }
+      return save(statements,{unit},201);
     }
     if(path==='/api/equipment/labels/prepare'&&method==='POST'){
       const ids=Array.isArray(body.equipment_ids)?body.equipment_ids.map(x=>str(x)):[],skip=number(body.skip_first_positions??0);
