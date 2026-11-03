@@ -401,6 +401,43 @@ try {
     },
   );
 
+  await check('equipment D1 order, idempotency, receipt and QR label audit', async () => {
+    const order = {
+      header: { customer_id: 'cus-stk22222', po_number: '004471', requested_by_name: 'Warehouse smoke' },
+      lines: [{ equipment_type_id: 'ety-22222222', manufacturer: 'Carrier', model: 'ABC-123', quantity: 10 }],
+    };
+    const headers = { 'Idempotency-Key': 'equipment-smoke-order-0001' };
+    const created = await post('/api/equipment/orders', order, { role: 'admin', headers, expected: 201 });
+    assert.equal(created.unit_ids.length, 10);
+    assert.equal(new Set(created.unit_ids).size, 10);
+    const retried = await post('/api/equipment/orders', order, { role: 'admin', headers, expected: 201 });
+    assert.deepEqual(retried.unit_ids, created.unit_ids);
+    assert.equal(await scalar('SELECT COUNT(*) FROM equipment'), 10);
+    assert.equal(await scalar('SELECT COUNT(*) FROM stock'), 0);
+    await post('/api/equipment/orders', order, { role: 'viewer', expected: 403 });
+    await post('/api/equipment/orders', order, { role: 'editor', expected: 403 });
+    const first = created.unit_ids[0];
+    const received = await post(`/api/equipment/${first}/receive`, {
+      version: 1, serial_number: 'S-123', confirmed_model: 'NOT-ORDERED',
+    }, { role: 'admin' });
+    assert.equal(received.unit.status, 'received');
+    assert.equal(received.unit.serial_number, 'S-123');
+    const mismatches = await get('/api/equipment/reviews', { role: 'admin' });
+    assert.ok(mismatches.items.some((x) => x.issue_code === 'MODEL_MISMATCH'));
+    const prepared = await post('/api/equipment/labels/prepare', {
+      equipment_ids: created.unit_ids.slice(0, 3), skip_first_positions: 2,
+    }, { role: 'admin' });
+    assert.deepEqual(prepared.labels.map((l) => l.sheet_position), [3, 4, 5]);
+    assert.ok(prepared.labels.every((l) => /^eqp-[2-9a-hj-km-np-z]{8}$/.test(l.equipment_id)));
+    await post('/api/equipment/labels/confirm', {
+      prepared_print_ids: prepared.labels.map((l) => l.label_print_id),
+    }, { role: 'admin' });
+    assert.equal(await scalar('SELECT COUNT(*) FROM equipment_label_prints WHERE confirmed_printed_at IS NOT NULL'), 3);
+    const report = await get('/api/equipment/reports', { role: 'viewer' });
+    assert.ok(report.statuses.some((x) => x.status === 'received' && x.total === 1));
+    assert.equal(await scalar('SELECT COUNT(*) FROM stock'), 0);
+  });
+
   let parts;
   let source;
   let sourceB;
