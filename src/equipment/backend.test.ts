@@ -100,4 +100,15 @@ describe('scoped D1 equipment workflows',()=>{
   const history=db.sqlite.prepare("SELECT COUNT(*) AS total FROM events WHERE entity='equipment' AND action='place'").get() as {total:number};
   expect(history.total).toBe(1);
  });
+
+ it('permits clearing required textual metadata without writing NULL and rejects unknown customers',async()=>{
+  const order=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,po_number:'REMOVEME'},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',quantity:1}]});
+  const equipmentId=(order.body.unit_ids as string[])[0];
+  const cleared=await call('/equipment/'+equipmentId,'PATCH',{version:1,changes:{po_number:'',manufacturer:'',notes:'',vendor:''}});
+  expect(cleared.status).toBe(200);
+  const row=db.sqlite.prepare('SELECT po_number,manufacturer,notes,vendor FROM equipment WHERE equipment_id=?').get(equipmentId);
+  expect(row).toEqual({po_number:'',manufacturer:'',notes:'',vendor:''});
+  const invalid=await call('/equipment/'+equipmentId,'PATCH',{version:2,changes:{customer_id:'cus-22222222'}});
+  expect(invalid.status).toBe(400);
+ });
 });

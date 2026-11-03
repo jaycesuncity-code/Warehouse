@@ -347,7 +347,15 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
          :['customer_id','po_number','requested_by_name','expected_date','vendor','notes','manufacturer','ordered_model'];
       if(Object.keys(changes).some(k=>k!=='version'&&!allowedFields.includes(k)))return fail(400,'validation','Unsupported or unauthorized field.');
       const patch:Row={};
-      for(const f of allowedFields)if(changes[f]!==undefined)patch[f]=['zone_id','floor_area_shelf_id','customer_id'].includes(f)?str(changes[f])||null:str(changes[f],f==='notes'?1000:250)||null;
+      const nullable=new Set(['zone_id','floor_area_shelf_id','serial_number','confirmed_model','expected_date','return_destination']);
+      for(const f of allowedFields)if(changes[f]!==undefined){
+        const value=str(changes[f],f==='notes'?1000:250);
+        patch[f]=value||(nullable.has(f)?null:'');
+      }
+      if(patch.customer_id!==undefined){
+        const customer=await one(db,'SELECT customer_id FROM customers WHERE customer_id=? AND active=1',patch.customer_id);
+        if(!customer)return fail(400,'validation','Select an active customer.');
+      }
       if(patch.po_number!==undefined)patch.po_normalized=normalized(patch.po_number);
       if(patch.manufacturer!==undefined)patch.manufacturer_normalized=normalized(patch.manufacturer);
       if(patch.serial_number!==undefined)patch.serial_normalized=normalized(patch.serial_number)||null;
@@ -376,10 +384,15 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
         const zone=await one(db,'SELECT zone_id FROM zones WHERE zone_id=? AND active=1',patch.zone_id);
         if(!zone)return fail(400,'validation','Location zone does not exist.');
       }
-      const newArea=patch.floor_area_shelf_id??prior.floor_area_shelf_id,newZone=patch.zone_id??prior.zone_id;
+      const newArea=patch.floor_area_shelf_id!==undefined?patch.floor_area_shelf_id:prior.floor_area_shelf_id;
+      const newZone=patch.zone_id!==undefined?patch.zone_id:prior.zone_id;
       if(newArea){
         const area=await one(db,'SELECT shelf_id FROM shelves WHERE shelf_id=? AND kind=\'floor_area\' AND zone_id=? AND active=1',newArea,newZone);
         if(!area)return fail(400,'validation','Equipment location must be an active floor-area shelf within its zone.');
+      }
+      if(patch.zone_id!==undefined&&patch.zone_id!==prior.zone_id){
+        // A location marker cannot silently remain at an old room's coordinates.
+        patch.marker_x_in=null;patch.marker_y_in=null;
       }
       const changed: Row = {...prior,...patch,version:Number(prior.version)+1,updated_at:now(),updated_by_email:me.email};
       const columns=Object.keys(patch).concat(['version','updated_at','updated_by_email']);
