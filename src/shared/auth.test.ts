@@ -192,7 +192,7 @@ describe('Cloudflare Access signed token verification', () => {
         jwt: await token({ email, role: 'admin', name: 'Employee' }),
       });
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ email: email.toLowerCase(), name: 'Employee', role });
+      expect(await response.json()).toMatchObject({ email: email.toLowerCase(), name: 'Employee', role, permissions: expect.any(Array) });
       expect(response.headers.get('cache-control')).toContain('no-store');
     }
     expect(fetch).toHaveBeenCalledTimes(1);
