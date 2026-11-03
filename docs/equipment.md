@@ -16,12 +16,12 @@ Approved architecture: [Equipment Integration Proposal](equipment-proposal.md) (
 ## Rules and known limitations
 
 - Real production use requires a **reviewed deployment and verified D1 migration**. No SQL should be pasted into production without verifying schema identity, backup, target and production authorization.
-- Order entry expands line quantities into individual units; one request is limited to **25 units** for bounded D1 transactions. Request receipts protect idempotent retries when the same key and body are used.
+- Order entry expands line quantities into individual units; one request is limited to **10 lines, 25 units** for bounded D1 transactions. Label prepare/confirm operations are limited to **25 units per request** to stay within conservative D1 operation budgets. Request receipts protect idempotent retries when the same key and body are used.
 - Duplicate serial/model mismatch are review issues, not blockers. Genuine concurrency or invalid status transitions remain conflicts.
 - Receiving without a prior order saves the unit and raises an unregistered-arrival review item.
 - Equipment status and location are independent from part `stock`. Warehouse physical zone validation must not invent a bin.
 - The UI downloads a PDF locally; only the explicit **Confirm physically printed** action records physical print confirmation. Print at Actual Size/100% and measure the calibration PDF before using actual Avery stock.
-- The first implementation does not yet include complete customer merging, admin permission-management screens, polished model suggestion UI, dashboard/reporting, scanner camera within Equipment (existing camera scanner routes equipment codes), or detailed stale-print query. These need follow-up implementation and tests before a production release.
+- The implementation includes customer merge API, a staff permission-management screen, model suggestions, inventory KPI counts and a reprint-needed query. The separate Equipment route relies on the existing warehouse camera scanner for QR capture, rather than duplicating a camera view. Precise 3D equipment staging markers and a dedicated customer-merge UI remain future work. These gaps and complete real-device QA should be reviewed before a production release.
 - No remote database access, physical printing, or authenticated production browser test has been performed by this implementation.
 - **Do not merge PR #2** until its CI is green and the missing production-critical tasks above are completed.
 
