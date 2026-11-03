@@ -43,4 +43,15 @@ describe('equipment ID and Avery 5821 PDF',()=>{
  it('rejects sheet positions outside 1-8',()=>{
   expect(()=>avery5821Pdf([{...label(0),sheet_position:9}])).toThrow('Invalid label position');
  });
+
+ it('fits long customer names and long model/PO text in label bands without oversized type',async()=>{
+  const long={...label(0),customer_name:'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    ordered_model:'MODEL-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    po_number:'0000000000000000000000000000000000000000000000000000'};
+  const pdf=avery5821Pdf([long]);
+  const source=await pdf.text();
+  expect(source).toContain('(eqp-22222222)');
+  expect(source).toContain('...');
+  expect(source).toContain('(Serial: ______________________)');
+ });
 });

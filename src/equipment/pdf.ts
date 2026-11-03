@@ -11,6 +11,20 @@ export const AVERY_5821 = { pageW: 612, pageH: 792, labelW: 288, labelH: 180, le
 const clean = (text: unknown, max = 80) => Array.from(String(text ?? '')).map(char => { const n = char.charCodeAt(0); return n < 32 || n > 126 ? ' ' : char; }).join('').slice(0, max);
 const pdfText = (v: unknown) => clean(v).replace(/[\\()]/g, s => '\\' + s);
 const trim = (v: unknown, len: number) => clean(v).slice(0, len);
+/** Approximate Helvetica glyph widths and shrink/ellipsis text before it reaches its allocated band. */
+const approximateWidth=(value:string,size:number)=>Array.from(value).reduce((sum,ch)=>{
+  const fraction=/[MW@%&]/.test(ch)?0.9:/[ilI.,' ]/.test(ch)?0.29:/[A-Z]/.test(ch)?0.68:0.54;
+  return sum+size*fraction;
+},0);
+export const fittedLabelText=(value:unknown,availableWidth:number,preferredSize:number,minSize=8)=>{
+  let label=clean(value,160),size=preferredSize;
+  while(size>minSize&&approximateWidth(label,size)>availableWidth)size=Math.max(minSize,size-0.5);
+  if(approximateWidth(label,size)>availableWidth){
+    while(label.length>0&&approximateWidth(label+'...',size)>availableWidth)label=label.slice(0,-1);
+    label+='...';
+  }
+  return {value:label,size};
+};
 const encoded = (value: string) => new TextEncoder().encode(value);
 /** Self-contained vector-PDF writer; no browser viewer, external asset, or server PDF endpoint required. */
 export function avery5821Pdf(labels: EquipmentLabel[], testPage = false): Blob {
@@ -35,11 +49,14 @@ export function avery5821Pdf(labels: EquipmentLabel[], testPage = false): Blob {
       stream += label.is_stock ? '0.788 0.659 0.298 rg\n' : '0.420 0.102 0.173 rg\n';
       stream += `${x+5} ${y+146} 278 29 re f\n`;
       stream += label.is_stock ? '0 g\n' : '1 g\n';
-      stream += text(x+10,y+156,label.is_stock?'STOCK':trim(label.customer_name,32),14);
+      const headerText=fittedLabelText(label.is_stock?'STOCK':label.customer_name,260,14,9);
+      stream += text(x+10,y+156,headerText.value,headerText.size);
       stream += '0 g\n';
-      stream += text(x+9,y+125,'PO: '+trim(label.po_number,24),11);
+      const poText=fittedLabelText('PO: '+clean(label.po_number,120),177,11,8);
+      stream += text(x+9,y+125,poText.value,poText.size);
       stream += text(x+9,y+105,trim(label.type_name,25),11);
-      stream += text(x+9,y+88,'Model: '+trim(label.ordered_model,25),10);
+      const modelText=fittedLabelText('Model: '+clean(label.ordered_model,100),177,10,8);
+      stream += text(x+9,y+88,modelText.value,modelText.size);
       stream += text(x+9,y+68,'Requested: '+trim(label.requested_by_name,25),9);
       stream += text(x+9,y+52,'Expected: '+trim(label.expected_date,14),9);
       stream += text(x+9,y+26,'Serial: ______________________',10);
