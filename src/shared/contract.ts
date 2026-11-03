@@ -14,7 +14,7 @@
 
 export type Role = 'viewer' | 'editor' | 'admin';
 
-export type IdPrefix = 'prt' | 'zon' | 'opn' | 'shf' | 'slt' | 'evt' | 'emp' | 'kit';
+export type IdPrefix = 'prt' | 'zon' | 'opn' | 'shf' | 'slt' | 'evt' | 'emp' | 'kit' | 'eqp' | 'ety' | 'cus' | 'ebt' | 'ebl' | 'rev' | 'elp';
 
 export type PartId = string; // prt-xxxxxxxx (legacy ids may exist, so display code must not assume the regex)
 export type ZoneId = string;
@@ -52,6 +52,7 @@ export interface Me {
   email: string;
   name: string;
   role: Role;
+  permissions?: string[];
 }
 
 export interface Zone {
