@@ -93,3 +93,16 @@ These require Cloudflare Access and `manage_staff` (admin possesses this). A vie
 On the feature branch run: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run test:live -- --browser`, `npm run test:e2e`. The PR's GitHub Actions workflow executes these. If no CI result is available, report it as **unverified**, not passing.
 
 **Rollback:** preserve a D1 Time Travel checkpoint and follow Cloudflare's authorized restore process if any production data/schema migration fails. There is no drop-table rollback SQL for equipment history.
+
+## Completion pass: durable orders and operational controls
+
+The equipment page now stores the idempotency key and exact body of an uncertain order in session storage until the server acknowledges it. Retrying the pending order reuses the original request and server receipt; a deliberate new order begins only after the outstanding attempt is resolved. Browser storage preserves retry state across reloads within that browser session, and existing D1 batches can be found from any authorized device.
+
+The receiving page offers persistent D1 batch search by PO (including leading zeroes), customer, batch ID and requested-by, with counts for received, remaining and cancelled units and one-click selection of individual units. The inventory search includes PO and manufacturer and has a load-more control. Authorized receiving staff can edit post-receipt metadata, while the order-only user remains restricted to their own ordered units. The administrator customer tool provides preview and explicit confirmation before customer merges.
+
+Only independent *equipment* rights are exposed in the Staff permissions panel. Parts, map and packouts still use the legacy Access role lists; those operations must never appear to obey unenforced database grants. Health checks now include the equipment migration's required columns, indexes, STOCK record and seeded types; this is intentionally an all-features readiness gate rather than a legacy-only health check.
+
+### Limitations requiring verification before release
+- CI confirms software checks; it cannot certify a physical printer, access to the real Cloudflare account, or production D1 migration state.
+- Equipment location precision and map staging-marker functionality must be checked independently; a zone or free-text location is not a substitute for a physically positioned marker.
+- A session-storage retry receipt is scoped to a browser tab/session. Users should find an existing batch by PO on other devices rather than re-submit when a result is uncertain.

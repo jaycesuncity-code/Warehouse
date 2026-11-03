@@ -135,6 +135,11 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
         q,q+'%');
       return reply({items});
     }
+    if (path === '/api/customers/duplicates' && method === 'GET') {
+      const name=str(url.searchParams.get('name'),200),norm=nameKey(name);
+      if(!norm)return reply({items:[]});
+      return reply({items:await list(db,`SELECT customer_id,display_name FROM customers WHERE active=1 AND is_stock=0 AND (normalized_name=? OR similarity_key=?) ORDER BY display_name LIMIT 15`,norm,similarityKey(name))});
+    }
     if (path === '/api/customers' && method === 'POST') {
       if (!allowed(me,rights,'order_equipment')&&!allowed(me,rights,'receive_edit_equipment')) return fail(403,'forbidden','Order or receive permission required.');
       const name=str(body.display_name,200), norm=nameKey(name);
@@ -143,6 +148,17 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const similar=await list(db,'SELECT customer_id,display_name FROM customers WHERE active=1 AND (normalized_name=? OR similarity_key=?) LIMIT 10',norm,similarityKey(name));
       const value={customer_id:id('cus'),display_name:name,normalized_name:norm,similarity_key:similarityKey(name),created_by:me.email,created_at:now(),updated_at:now()};
       return save([insert(db,'customers',value),event(db,me,'create','equipment_customer',value.customer_id,{},value)],{customer:value,similar_customers:similar},201);
+    }
+    const mergePreview=path.match(/^\/api\/customers\/(cus-[a-z0-9]{8})\/merge-preview$/);
+    if(mergePreview && method === 'GET') {
+      if(me.role!=='admin')return fail(403,'forbidden','Administrator permission required.');
+      const from=await one(db,'SELECT * FROM customers WHERE customer_id=? AND active=1',mergePreview[1]);
+      const into=await one(db,'SELECT * FROM customers WHERE customer_id=? AND active=1',str(url.searchParams.get('into_customer_id')));
+      if(!from||!into)return fail(404,'not_found','Customer not found.');
+      if(from.customer_id===into.customer_id||from.is_stock||into.is_stock)return fail(400,'validation','Cannot merge the same customer or STOCK.');
+      const units=await one(db,'SELECT COUNT(*) AS total FROM equipment WHERE customer_id=?',from.customer_id);
+      const batches=await one(db,'SELECT COUNT(*) AS total FROM equipment_entry_batches WHERE customer_id=?',from.customer_id);
+      return reply({from:{customer_id:from.customer_id,display_name:from.display_name},into:{customer_id:into.customer_id,display_name:into.display_name},affected_units:units?.total??0,affected_batches:batches?.total??0});
     }
     const customerMerge = path.match(/^\/api\/customers\/(cus-[a-z0-9]{8})\/merge$/);
     if (customerMerge && method === 'POST') {
@@ -194,9 +210,9 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const items=await list(db,`SELECT e.*,c.display_name AS customer_name,t.name AS type_name,t.serial_expected
        FROM equipment e JOIN customers c ON c.customer_id=e.customer_id JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id
        WHERE (?='' OR e.status=?) AND (?='' OR e.customer_id=?) AND (?='' OR e.po_normalized=?)
-       AND (?='' OR e.equipment_id LIKE ? OR e.ordered_model LIKE ? OR e.serial_number LIKE ? OR c.display_name LIKE ?)
+       AND (?='' OR e.equipment_id LIKE ? OR e.ordered_model LIKE ? OR e.serial_number LIKE ? OR c.display_name LIKE ? OR e.po_number LIKE ? OR e.po_normalized LIKE ? OR e.manufacturer LIKE ?)
        ORDER BY e.created_at DESC,e.equipment_id DESC LIMIT ? OFFSET ?`,
-       status,status,customer,customer,po,po,q,q+'%',q+'%',q+'%',q+'%',limit,offset);
+       status,status,customer,customer,po,po,q,q+'%',q+'%',q+'%',q+'%',q+'%',normalized(q)+'%',q+'%',limit,offset);
       return reply({items,limit,offset,next_offset:items.length===limit?offset+limit:null});
     }
     if (path === '/api/equipment/reviews' && method === 'GET') {
@@ -204,12 +220,33 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const state=str(url.searchParams.get('state')||'open',20);
       return reply({items:await list(db,'SELECT * FROM warehouse_review_items WHERE state=? ORDER BY created_at DESC LIMIT 100',state)});
     }
+    if (path === '/api/equipment/batches' && method === 'GET') {
+      const q=str(url.searchParams.get('q'),120), search=normalized(q);
+      const customerId=str(url.searchParams.get('customer_id'),30);
+      const limit=Math.min(Math.max(number(Number(url.searchParams.get('limit')||25)),1),100);
+      const offset=Math.min(Math.max(number(Number(url.searchParams.get('offset')||0)),0),100000);
+      const rows=await list(db,`SELECT b.entry_batch_id,b.customer_id,b.po_number,b.requested_by_name,
+        b.entered_by_email,b.expected_date,b.created_at,c.display_name AS customer_name,c.is_stock,
+        COUNT(e.equipment_id) AS total,
+        SUM(CASE WHEN e.status='ordered' THEN 1 ELSE 0 END) AS remaining,
+        SUM(CASE WHEN e.received_at IS NOT NULL THEN 1 ELSE 0 END) AS received,
+        SUM(CASE WHEN e.status='cancelled' THEN 1 ELSE 0 END) AS cancelled
+        FROM equipment_entry_batches b JOIN customers c ON c.customer_id=b.customer_id
+        LEFT JOIN equipment e ON e.entry_batch_id=b.entry_batch_id
+        WHERE (?='' OR b.entry_batch_id LIKE ? OR b.po_normalized LIKE ? OR upper(c.display_name) LIKE ?
+              OR upper(b.requested_by_name) LIKE ?)
+          AND (?='' OR b.customer_id=?)
+        GROUP BY b.entry_batch_id
+        ORDER BY b.created_at DESC,b.entry_batch_id DESC LIMIT ? OFFSET ?`,
+        q,q+'%',search+'%',search+'%',search+'%',customerId,customerId,limit+1,offset);
+      return reply({items:rows.slice(0,limit),limit,offset,next_offset:rows.length>limit?offset+limit:null});
+    }
     const getBatch=path.match(/^\/api\/equipment\/batches\/(ebt-[a-z0-9]{8})$/);
     if (getBatch && method==='GET') {
-      const batch=await one(db,'SELECT * FROM equipment_entry_batches WHERE entry_batch_id=?',getBatch[1]);
+      const batch=await one(db,`SELECT b.*,c.display_name AS customer_name FROM equipment_entry_batches b JOIN customers c ON c.customer_id=b.customer_id WHERE b.entry_batch_id=?`,getBatch[1]);
       if (!batch) return fail(404,'not_found','Batch not found.');
-      const units=await list(db,'SELECT * FROM equipment WHERE entry_batch_id=? ORDER BY entry_line_id,unit_index',getBatch[1]);
-      return reply({batch,units,received:units.filter(u=>u.received_at).length,total:units.length});
+      const units=await list(db,`SELECT e.*,t.name AS type_name,c.display_name AS customer_name FROM equipment e JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id JOIN customers c ON c.customer_id=e.customer_id WHERE e.entry_batch_id=? ORDER BY e.entry_line_id,e.unit_index`,getBatch[1]);
+      return reply({batch,units,received:units.filter(u=>u.received_at).length,remaining:units.filter(u=>u.status==='ordered').length,cancelled:units.filter(u=>u.status==='cancelled').length,total:units.length});
     }
     const getEquipment=path.match(/^\/api\/equipment\/(eqp-[a-z0-9]{8})$/);
     if (getEquipment && method==='GET') {
@@ -407,7 +444,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
     if(grant&&(method==='PUT'||method==='DELETE')){
       if(!allowed(me,rights,'manage_staff')||(grant[2]==='admin'&&me.role!=='admin'))return fail(403,'forbidden','Staff permission required.');
       const email=decodeURIComponent(grant[1]).toLowerCase(),permission=grant[2];
-      if(!['order_equipment','receive_edit_equipment','print_labels','manage_equipment_types','edit_parts_stock','edit_layout','manage_packouts','manage_employees','manage_zones','manage_staff','admin'].includes(permission))
+      if(!['order_equipment','receive_edit_equipment','print_labels','manage_equipment_types','manage_staff'].includes(permission))
         return fail(400,'validation','Unrecognized permission.');
       if(!/^[^\s@]+@[^\s@]+$/.test(email))return fail(400,'validation','Invalid email.');
       const statements=method==='PUT'?[

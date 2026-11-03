@@ -79,4 +79,14 @@ describe('scoped D1 equipment workflows',()=>{
   expect(confirmed.status).toBe(200);
   expect(db.sqlite.prepare('SELECT count(*) AS n FROM stock').get()).toEqual({n:0});
  });
+
+ it('rejects an idempotency key reused with a changed order',async()=>{
+  const first=await call('/equipment/orders','POST',
+    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]},'changed-order-0001');
+  const second=await call('/equipment/orders','POST',
+    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:3}]},'changed-order-0001');
+  expect(first.status).toBe(201);
+  expect(second.status).toBe(409);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS total FROM equipment').get()).toEqual({total:1});
+ });
 });

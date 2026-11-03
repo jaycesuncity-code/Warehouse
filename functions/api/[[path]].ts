@@ -57,6 +57,15 @@ const REQUIRED_COLUMNS: Record<string, string> = {
   employees: 'employee_id name email active version',
   packouts: 'kit_id name slot_id status employee_id issued_at issued_contents version active',
   idempotency_requests: 'actor key request_hash response_status response_body response_headers created_at',
+  staff_accounts: 'email display_name active version created_at updated_at',
+  staff_permissions: 'email permission granted_by_email granted_at',
+  customers: 'customer_id display_name normalized_name similarity_key is_stock active merged_into_customer_id version',
+  equipment_types: 'equipment_type_id name department serial_expected active version',
+  equipment_entry_batches: 'entry_batch_id customer_id po_number entered_by_email version',
+  equipment_batch_lines: 'entry_line_id entry_batch_id equipment_type_id ordered_qty',
+  equipment: 'equipment_id equipment_type_id customer_id status po_number po_normalized serial_normalized zone_id floor_area_shelf_id version',
+  warehouse_review_items: 'review_id entity_type entity_id issue_code state version',
+  equipment_label_prints: 'label_print_id equipment_id label_fingerprint confirmed_printed_at',
 };
 
 async function healthy(db: D1): Promise<boolean> {
@@ -70,9 +79,16 @@ async function healthy(db: D1): Promise<boolean> {
       ),
     ),
     db.prepare('SELECT revision FROM warehouse_meta WHERE id=1'),
+    db.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type='index' AND name IN ('equipment_status_due','equipment_customer_po','equipment_batch','equipment_serial','equipment_location','equipment_print_history','review_open_unique','staff_permissions_permission')"),
+    db.prepare("SELECT COUNT(*) AS total FROM customers WHERE is_stock=1 AND active=1"),
+    db.prepare("SELECT COUNT(*) AS total FROM equipment_types WHERE active=1"),
   ]);
-  const revision = result.at(-1)?.results[0]?.revision;
-  return Number.isSafeInteger(revision) && Number(revision) > 0;
+  const revision = result.at(-4)?.results[0]?.revision;
+  const indexes = result.at(-3)?.results[0]?.total;
+  const stockCustomers = result.at(-2)?.results[0]?.total;
+  const activeTypes = result.at(-1)?.results[0]?.total;
+  return Number.isSafeInteger(revision) && Number(revision) > 0
+    && Number(indexes) === 8 && Number(stockCustomers) === 1 && Number(activeTypes) > 0;
 }
 
 async function requestHash(method: string, url: URL, raw: string): Promise<string> {
