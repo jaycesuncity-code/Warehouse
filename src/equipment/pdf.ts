@@ -8,7 +8,7 @@ export interface EquipmentLabel {
 }
 /** US Letter, 2 by 4 Avery 5821. 4 x 2.5 inches per label. Coordinates in PDF points. */
 export const AVERY_5821 = { pageW: 612, pageH: 792, labelW: 288, labelH: 180, left: 12.6, right: 311.4, top: 36, rowStep: 180, perPage: 8 } as const;
-const clean = (text: unknown, max = 80) => String(text ?? '').replace(/[\x00-\x1f\x7f-\xff]/g, ' ').slice(0, max);
+const clean = (text: unknown, max = 80) => Array.from(String(text ?? '')).map(char => { const n = char.charCodeAt(0); return n < 32 || n > 126 ? ' ' : char; }).join('').slice(0, max);
 const pdfText = (v: unknown) => clean(v).replace(/[\\()]/g, s => '\\' + s);
 const trim = (v: unknown, len: number) => clean(v).slice(0, len);
 const encoded = (value: string) => new TextEncoder().encode(value);
@@ -18,7 +18,7 @@ export function avery5821Pdf(labels: EquipmentLabel[], testPage = false): Blob {
   const objects: string[] = [], push = (v: string) => { objects.push(v); return objects.length; };
   const catalog = push(''), pagesRoot = push(''), font = push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   const pageRefs: number[] = [];
-  const text = (x: number,y: number,value: unknown,size: number, bold = false) =>
+  const text = (x: number,y: number,value: unknown,size: number) =>
     `BT /F1 ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${pdfText(value)}) Tj ET\n`;
   for (let page=1;page<=pages;page++) {
     let stream = '0 G 0 g\n';
