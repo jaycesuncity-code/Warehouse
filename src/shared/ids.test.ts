@@ -23,7 +23,7 @@ describe('ID regexes', () => {
   });
 
   it('has one pattern per prefix and idKind() tells them apart', () => {
-    expect([...ID_PREFIXES].sort()).toEqual(['emp', 'evt', 'kit', 'opn', 'prt', 'shf', 'slt', 'zon']);
+    expect([...ID_PREFIXES].sort()).toEqual(['cus', 'ebl', 'ebt', 'elp', 'emp', 'eqp', 'ety', 'evt', 'kit', 'opn', 'prt', 'rev', 'shf', 'slt', 'zon']);
     for (const p of ID_PREFIXES) {
       expect(ID_PATTERNS[p].test(`${p}-23456789`)).toBe(true);
       expect(idKind(`${p}-abcdefgh`)).toBe(p);
