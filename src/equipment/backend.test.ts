@@ -89,4 +89,15 @@ describe('scoped D1 equipment workflows',()=>{
   expect(second.status).toBe(409);
   expect(db.sqlite.prepare('SELECT COUNT(*) AS total FROM equipment').get()).toEqual({total:1});
  });
+
+ it('places equipment at a verified map coordinate, rejects outside rooms and records an event',async()=>{
+  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]});
+  const unitId=(res.body.unit_ids as string[])[0];
+  expect((await call('/equipment/'+unitId+'/place','POST',{version:1,x_in:120,y_in:500})).status).toBe(200);
+  const markers=await call('/equipment/map-markers');
+  expect((markers.body.items as {equipment_id:string}[]).some(x=>x.equipment_id===unitId)).toBe(true);
+  expect((await call('/equipment/'+unitId+'/place','POST',{version:2,x_in:3000,y_in:3000})).status).toBe(400);
+  const history=db.sqlite.prepare("SELECT COUNT(*) AS total FROM events WHERE entity='equipment' AND action='place'").get() as {total:number};
+  expect(history.total).toBe(1);
+ });
 });

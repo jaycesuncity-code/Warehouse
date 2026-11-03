@@ -177,6 +177,16 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       ];
       return save(statements,{from_customer_id:from.customer_id,into_customer_id:into.customer_id,affected_units:countRow?.total||0,affected_batches:batchRow?.total||0});
     }
+    if (path === '/api/equipment/map-markers' && method === 'GET') {
+      return reply({items:await list(db,`SELECT e.equipment_id,e.marker_x_in,e.marker_y_in,e.zone_id,
+        e.version,e.status,e.po_number,e.ordered_model,c.display_name AS customer_name,
+        t.name AS type_name FROM equipment e
+        JOIN customers c ON c.customer_id=e.customer_id
+        JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id
+        WHERE e.marker_x_in IS NOT NULL AND e.marker_y_in IS NOT NULL
+          AND e.status NOT IN ('cancelled','installed','delivered')
+        ORDER BY e.updated_at DESC LIMIT 500`)});
+    }
     if (path === '/api/equipment/reports' && method === 'GET') {
       const counts = await list(db,`SELECT status,COUNT(*) AS total FROM equipment GROUP BY status`);
       const overdue = await one(db,"SELECT count(*) AS total FROM equipment WHERE status='ordered' AND expected_date < date('now')");
@@ -290,6 +300,35 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       }
       statements.push(event(db,me,'create','equipment_batch',batchId,{}, {batch_id:batchId,unit_ids:unitIds}));
       return save(statements,{batch_id:batchId,unit_ids:unitIds},201);
+    }
+    const place = path.match(/^\/api\/equipment\/(eqp-[a-z0-9]{8})\/place$/);
+    if(place && method === 'POST') {
+      if(!allowed(me,rights,'receive_edit_equipment'))return fail(403,'forbidden','Receiving permission required to position equipment.');
+      const x=body.x_in,y=body.y_in;
+      if(typeof x!=='number'||typeof y!=='number'||!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1201||y<0||y>1947)
+        return fail(400,'validation','Choose a finite map position inside the warehouse footprint.');
+      const prior=await getUnit(db,place[1]);
+      if(!prior)return fail(404,'not_found','Equipment not found.');
+      if(body.version!==prior.version)return fail(409,'version_conflict','Equipment was edited. Reload before positioning.',{current:prior});
+      if(!['ordered','received','in_stock','reserved','returned'].includes(String(prior.status)))
+        return fail(409,'status_conflict','Only physical equipment waiting in or returning to the warehouse can be staged.');
+      const zones=await list(db,'SELECT zone_id,polygon_in FROM zones WHERE active=1');
+      const inPoly=(points:number[][])=>{let inside=false;
+        for(let i=0,j=points.length-1;i<points.length;j=i++){
+          const a=points[i],b=points[j];
+          if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+        }return inside;};
+      const matches=zones.filter(z=>{try{const poly=JSON.parse(String(z.polygon_in)) as number[][];
+        return poly.length>=3&&poly.every(pt=>Array.isArray(pt)&&pt.length===2&&pt.every(Number.isFinite))&&inPoly(poly);}
+        catch{return false;}});
+      if(!matches.length)return fail(400,'validation','Position must fall inside an active room polygon.');
+      const zone=matches.find(z=>z.zone_id===prior.zone_id)??matches[0];
+      const roundedX=Math.round(x*16)/16,roundedY=Math.round(y*16)/16;
+      const updated={...prior,marker_x_in:roundedX,marker_y_in:roundedY,zone_id:zone.zone_id,
+        floor_area_shelf_id:null,version:Number(prior.version)+1,updated_at:now(),updated_by_email:me.email};
+      return save([sql(db,'UPDATE equipment SET marker_x_in=?,marker_y_in=?,zone_id=?,floor_area_shelf_id=NULL,version=?,updated_at=?,updated_by_email=? WHERE equipment_id=? AND version=?',
+        roundedX,roundedY,zone.zone_id,updated.version,updated.updated_at,me.email,place[1],prior.version),
+        event(db,me,'place','equipment',place[1],prior,updated)],{unit:updated});
     }
     const unitUpdate=path.match(/^\/api\/equipment\/(eqp-[a-z0-9]{8})(?:\/(receive|cancel))?$/);
     if(unitUpdate && (method==='PATCH'||method==='POST')) {

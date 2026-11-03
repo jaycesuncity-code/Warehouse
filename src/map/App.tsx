@@ -16,6 +16,7 @@ import {
   undo,
 } from "./actions";
 import { MapCanvas } from "./scene/Scene";
+import { EquipmentMapPanel } from "./scene/EquipmentMarkers";
 import { LabelLayer } from "./scene/labels";
 import { dropPicker } from "./scene/DropPicker";
 import { DialogHost, FailedEdits, ToastBridge } from "./ui/Dialogs";
@@ -145,6 +146,7 @@ function Viewport({ showResults }: { showResults: boolean }) {
     >
       <GraphicsBoundary>
         <MapCanvas />
+        <EquipmentMapPanel />
         <LabelLayer labels={labels} />
         <CursorReadout />
         <NorthArrow />

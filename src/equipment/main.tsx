@@ -248,7 +248,8 @@ function App(){
   <div className="space-y-2">{units.map(u=><article key={u.equipment_id} className="p-3 bg-white border rounded-lg flex gap-3 items-start">
    <input type="checkbox" aria-label={'Select '+u.equipment_id} checked={selected.includes(u.equipment_id)}
     onChange={e=>{setSelected(s=>e.target.checked?[...s,u.equipment_id]:s.filter(x=>x!==u.equipment_id));setPrintIds([]);setLastPdf(null);}}/>
-   <div className="flex-1 min-w-0"><b>{u.customer_name}</b> · {u.type_name} · {u.ordered_model}<p className="text-sm">PO {u.po_number||'—'} · {u.status} · {u.equipment_id}</p></div>
+   <div className="flex-1 min-w-0"><b>{u.customer_name}</b> · {u.type_name} · {u.ordered_model}<p className="text-sm">PO {u.po_number||'—'} · {u.status} · {u.equipment_id}</p>
+    {u.marker_x_in!=null&&u.marker_y_in!=null&&<a className="text-sm font-semibold underline text-[#6B1A2C]" href={'/map/?equipment='+encodeURIComponent(u.equipment_id)}>Show on warehouse map</a>}</div>
    <button className="underline text-[#6B1A2C]" onClick={()=>{setScan(u.equipment_id);void findUnit(u.equipment_id);}}>Open</button>
    </article>)}</div>
   {inventoryOffset!==null&&<button className={base} onClick={()=>void loadInventory(q,inventoryOffset)}>Load more equipment</button>}
@@ -311,6 +312,8 @@ function App(){
   {unit?<article className="bg-white p-4 border rounded-lg space-y-3">
    <h3 className="font-bold text-xl">{unit.customer_name||'Equipment'} · {unit.type_name||unit.equipment_type_id}</h3>
    <p>{unit.equipment_id} · {unit.status} · PO {unit.po_number||'—'}</p><p>Ordered model: {unit.ordered_model||'Not specified'}</p>
+   {unit.marker_x_in!=null&&unit.marker_y_in!=null&&<a className="font-semibold underline text-[#6B1A2C]" href={'/map/?equipment='+encodeURIComponent(unit.equipment_id)}>Find staged equipment on map</a>}
+   {can('receive_edit_equipment')&&<a className="block underline text-[#6B1A2C]" href={'/map/'}>Place or move equipment on warehouse map</a>}
    <label className="block">Serial number <input className={base} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="Scan/type serial (may be blank)"/></label>
    <label className="block">Confirmed model <input className={base} value={model} onChange={e=>setModel(e.target.value)}/></label>
    <label className="block">Warehouse zone <select className={base} value={zoneId} onChange={e=>setZoneId(e.target.value)}><option value="">Not assigned yet</option>{zones.map(z=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}</select></label>

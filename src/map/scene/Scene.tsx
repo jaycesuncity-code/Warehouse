@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { useMap } from "../store";
 import { Building } from "./Building";
 import { CameraRig } from "./CameraRig";
+import { EquipmentMarkers } from "./EquipmentMarkers";
 import { SceneDebug } from "./Debug";
 import { DropPicker } from "./DropPicker";
 import { AdminHandles, FloorEvents } from "./Floor";
@@ -33,6 +34,7 @@ export function MapCanvas() {
       <Shelves />
       <SelectionOverlay />
       <SearchGlow />
+      <EquipmentMarkers />
       <FloorEvents />
       <AdminHandles />
       <WalkController />

@@ -106,3 +106,11 @@ Only independent *equipment* rights are exposed in the Staff permissions panel. 
 - CI confirms software checks; it cannot certify a physical printer, access to the real Cloudflare account, or production D1 migration state.
 - Equipment location precision and map staging-marker functionality must be checked independently; a zone or free-text location is not a substitute for a physically positioned marker.
 - A session-storage retry receipt is scoped to a browser tab/session. Users should find an existing batch by PO on other devices rather than re-submit when a result is uncertain.
+
+## Precise equipment map placements (migration 0007)
+
+The optional equipment marker is stored as an X/Y position in map inches, using the same reference frame as the existing warehouse map. A receiver can enter the Equipment Staging Markers panel on `/map/`, select an existing equipment ID and click the appropriate room floor. The API rejects out-of-range, non-room and stale-version positions, then saves coordinates plus the matching zone, emits an equipment audit event, and refreshes the interactive 3D markers. Clicking a marker opens its unit record, and unit search/details link to `/map/?equipment=eqp-...` to focus on the location.
+
+Migration `0007_equipment_map_positions.sql` adds nullable marker coordinates and an index to `equipment`; previous equipment records remain valid without markers. This must be applied **after 0006** on isolated copies first. The system's `/api/health` now requires both 0006 and 0007 for complete readiness.
+
+Physical layout still carries existing unverified room outlines; marker placement means the employee selected a location, not that building geometry or aisle safety was professionally surveyed. The map and physical marker workflow require on-site visual verification before production authorization.

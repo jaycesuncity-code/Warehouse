@@ -11,6 +11,7 @@ import { addShelfAt, patchOpening, patchZone, select } from "../actions";
 import { editing, getMap, isAdmin, setMap, useMap } from "../store";
 import { floorPointAt } from "./common";
 import { rig } from "./CameraRig";
+import { pendingEquipmentPlacement, placeEquipmentAt } from "./EquipmentMarkers";
 
 const blocked = (e: ThreeEvent<MouseEvent>) =>
   e.intersections.some((i) => i.object.name === "shelf-hits" || i.object.name.startsWith("handle"));
@@ -28,6 +29,11 @@ export function FloorEvents() {
     const s = getMap();
     if (s.view === "walk") return;
     const p = { x: e.point.x, y: e.point.z };
+    if (pendingEquipmentPlacement()) {
+      e.stopPropagation();
+      void placeEquipmentAt(p.x,p.y).catch(error=>window.alert(error instanceof Error?error.message:String(error)));
+      return;
+    }
     if (editing(s) && s.tool?.kind === "add-shelf") {
       const preset = s.tool.preset;
       if (!e.nativeEvent.shiftKey) setMap({ tool: null });
