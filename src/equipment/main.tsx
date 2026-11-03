@@ -30,7 +30,7 @@ function App(){
  const [modelHints,setModelHints]=useState<Record<string,string[]>>({});
  const [unregisteredType,setUnregisteredType]=useState('');
  const [scan,setScan]=useState(new URLSearchParams(location.search).get('id')??''),[unit,setUnit]=useState<R|null>(null);
- const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState(''),[zoneId,setZoneId]=useState(''),[disposition,setDisposition]=useState('received');
+ const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState(''),[zoneId,setZoneId]=useState(''),[disposition,setDisposition]=useState('received'),[returnReason,setReturnReason]=useState(''),[returnDestination,setReturnDestination]=useState('warehouse');
  const [lastBatch,setLastBatch]=useState(''),[skip,setSkip]=useState(0),[printIds,setPrintIds]=useState<string[]>([]);
  const [lastPdf,setLastPdf]=useState<Blob|null>(null);
  const rights=me?.permissions??[];
@@ -78,7 +78,7 @@ function App(){
  async function updateDisposition(){
   if(!unit)return;
   try{
-   const updated=await req('/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes:{status:disposition}});
+   const updated=await req('/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes:disposition==='returned'?{status:disposition,return_reason:returnReason,return_destination:returnDestination}:{status:disposition}});
    setUnit(updated.unit);setDisposition(text(updated.unit.status));success('Equipment status changed to '+disposition+'.');
    await loadInventory();
   }catch(e){report(e);}
@@ -102,7 +102,7 @@ function App(){
  async function findUnit(value:string){
   const id=value.trim().toLowerCase();
   if(!isEquipmentId(id)){report(new Error('Scan or enter an eqp- equipment ID.'));return;}
-  try{const result=await req('/equipment/'+encodeURIComponent(id));setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setZoneId(text(result.unit.zone_id));setDisposition(text(result.unit.status));setTab('receive');success('Equipment found.');}
+  try{const result=await req('/equipment/'+encodeURIComponent(id));setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setZoneId(text(result.unit.zone_id));setDisposition(text(result.unit.status));setReturnReason(text(result.unit.return_reason));setReturnDestination(text(result.unit.return_destination||'warehouse'));setTab('receive');success('Equipment found.');}
   catch(e){report(e);}
  }
  async function receive(){
@@ -221,7 +221,13 @@ function App(){
      <label className="block">Disposition / next status<select className={base} value={disposition} onChange={e=>setDisposition(e.target.value)}>
       {['received','in_stock','reserved','installed','delivered','returned'].map(s=><option value={s} key={s}>{s.replaceAll('_',' ')}</option>)}
      </select></label>
-     <button className={button} disabled={disposition===unit.status} onClick={updateDisposition}>Update status</button>
+     {disposition==='returned'&&<div className="space-y-2">
+      <label className="block">Return reason<input className={base} value={returnReason} onChange={e=>setReturnReason(e.target.value)} placeholder="Reason for return"/></label>
+      <label className="block">Return destination<select className={base} value={returnDestination} onChange={e=>setReturnDestination(e.target.value)}>
+       {['warehouse','vendor','customer'].map(d=><option value={d} key={d}>{d}</option>)}
+      </select></label>
+     </div>}
+     <button className={button} disabled={disposition===unit.status||(disposition==='returned'&&!returnReason.trim())} onClick={updateDisposition}>Update status</button>
     </div>}
 
   </article>:<div className="bg-white rounded-lg p-4">Scan an equipment QR code to open its receiving record.</div>}
