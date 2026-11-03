@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { isEquipmentId } from '../shared/ids';
 import { avery5821Pdf, type EquipmentLabel } from './pdf';
+import { StaffPanel } from './StaffPanel';
 import '../shared/ui/styles.css';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type R = Record<string, any>;
-type Tab = 'orders'|'receive'|'inventory'|'reviews'|'labels';
+type Tab = 'orders'|'receive'|'inventory'|'reviews'|'labels'|'staff';
 const base = 'rounded-lg border border-gray-300 bg-white px-3 py-2 w-full text-gray-900';
 const button = 'rounded-lg px-4 py-3 font-bold border border-[#6B1A2C] bg-[#6B1A2C] text-white disabled:opacity-50';
 async function req(path:string,method='GET',body?:R):Promise<R> {
@@ -20,7 +21,7 @@ const text = (value:unknown) => String(value??'');
 const errorText = (e:unknown) => e instanceof Error?e.message:String(e);
 function App(){
  const [tab,setTab]=useState<Tab>('inventory'),[me,setMe]=useState<R|null>(null),[types,setTypes]=useState<R[]>([]),[customers,setCustomers]=useState<R[]>([]);
- const [units,setUnits]=useState<R[]>([]),[reviews,setReviews]=useState<R[]>([]),[notice,setNotice]=useState(''),[error,setError]=useState('');
+ const [units,setUnits]=useState<R[]>([]),[reviews,setReviews]=useState<R[]>([]),[zones,setZones]=useState<R[]>([]),[stats,setStats]=useState<R|null>(null),[reprints,setReprints]=useState<R[]>([]),[notice,setNotice]=useState(''),[error,setError]=useState('');
  const [q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]);
  const [customerSearch,setCustomerSearch]=useState(''),[newCustomer,setNewCustomer]=useState('');
  const [customerId,setCustomerId]=useState('cus-stk22222'),[po,setPo]=useState(sessionStorage.getItem('equipment.po')??'');
@@ -28,7 +29,7 @@ function App(){
  const [lines,setLines]=useState<R[]>([{equipment_type_id:'',manufacturer:'',model:'',quantity:1}]);
  const [unregisteredType,setUnregisteredType]=useState('');
  const [scan,setScan]=useState(new URLSearchParams(location.search).get('id')??''),[unit,setUnit]=useState<R|null>(null);
- const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState('');
+ const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState(''),[zoneId,setZoneId]=useState('');
  const [lastBatch,setLastBatch]=useState(''),[skip,setSkip]=useState(0),[printIds,setPrintIds]=useState<string[]>([]);
  const [lastPdf,setLastPdf]=useState<Blob|null>(null);
  const rights=me?.permissions??[];
@@ -36,11 +37,11 @@ function App(){
  function report(e:unknown){setError(errorText(e));setNotice('');}
  function success(message:string){setNotice(message);setError('');}
  async function refresh(){
-   const [a,b,c]=await Promise.all([req('/me'),req('/equipment/types'),req('/customers')]);
-   setMe(a);setTypes(b.items);setCustomers(c.items);
+   const [a,b,c,d]=await Promise.all([req('/me'),req('/equipment/types'),req('/customers'),req('/zones')]);
+   setMe(a);setTypes(b.items);setCustomers(c.items);setZones(d.items);
  }
  async function loadInventory(query=q){
-   try{setUnits((await req('/equipment?q='+encodeURIComponent(query)+'&limit=100')).items);}
+   try{const [items,totals]=await Promise.all([req('/equipment?q='+encodeURIComponent(query)+'&limit=100'),req('/equipment/reports')]);setUnits(items.items);setStats(totals);}
    catch(e){report(e);}
  }
  async function loadReviews(){
@@ -48,7 +49,7 @@ function App(){
    catch(e){report(e);}
  }
  useEffect(()=>{refresh().catch(report);loadInventory('');},[]);
- useEffect(()=>{if(tab==='reviews')loadReviews();if(tab==='inventory')loadInventory();},[tab]);
+ useEffect(()=>{if(tab==='reviews')loadReviews();if(tab==='inventory')loadInventory();if(tab==='labels')req('/equipment/labels/reprint-needed').then(r=>setReprints(r.items)).catch(report);},[tab]);
  useEffect(()=>{if(scan&&isEquipmentId(scan.trim().toLowerCase()))void findUnit(scan);},[]);
  const filteredCustomers=useMemo(()=>customers.filter(c=>text(c.display_name).toLowerCase().includes(customerSearch.toLowerCase())).slice(0,15),[customers,customerSearch]);
  function editLine(i:number,key:string,value:unknown){setLines(old=>old.map((line,j)=>i===j?{...line,[key]:value}:line));}
@@ -71,13 +72,13 @@ function App(){
  async function findUnit(value:string){
   const id=value.trim().toLowerCase();
   if(!isEquipmentId(id)){report(new Error('Scan or enter an eqp- equipment ID.'));return;}
-  try{const result=await req('/equipment/'+encodeURIComponent(id));setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setTab('receive');success('Equipment found.');}
+  try{const result=await req('/equipment/'+encodeURIComponent(id));setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setZoneId(text(result.unit.zone_id));setTab('receive');success('Equipment found.');}
   catch(e){report(e);}
  }
  async function receive(){
   if(!unit)return;
   try{
-   await req('/equipment/'+unit.equipment_id+'/receive','POST',{version:unit.version,serial_number:serial,confirmed_model:model,location_note:locationNote});
+   await req('/equipment/'+unit.equipment_id+'/receive','POST',{version:unit.version,serial_number:serial,confirmed_model:model,location_note:locationNote,zone_id:zoneId||null});
    success('Received '+unit.equipment_id+'. Ready for another QR scan.');setUnit(null);setScan('');setSerial('');await loadInventory();
   }catch(e){report(e);}
  }
@@ -129,7 +130,7 @@ function App(){
  </header>
  <main className="mx-auto max-w-5xl px-3 py-5">
  <nav className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5" aria-label="Equipment navigation">
- {([['inventory','Find equipment'],['orders','Order equipment'],['receive','Receive / scan'],['labels','Print labels'],['reviews','Needs attention']] as [Tab,string][]).map(([key,label])=>
+ {([['inventory','Find equipment'],['orders','Order equipment'],['receive','Receive / scan'],['labels','Print labels'],['reviews','Needs attention'],...(can('manage_staff')?[['staff','Staff permissions']]:[])] as [Tab,string][]).map(([key,label])=>
  <button key={key} type="button" onClick={()=>{setTab(key);setError('');}} className={tab===key?button:base}>{label}</button>)}
  </nav>
  {error&&<div role="alert" className="mb-4 p-3 border border-red-500 bg-red-50 text-red-900 rounded-lg">{error}</div>}
@@ -137,11 +138,12 @@ function App(){
  {!me&&<p className="p-3 bg-white rounded-lg">Checking sign-in and equipment permissions…</p>}
  {tab==='inventory'&&<section className="space-y-3">
   <h2 className="text-xl font-bold">Equipment inventory</h2>
+  {stats&&<div className="grid grid-cols-2 md:grid-cols-4 gap-2">{[['Overdue',stats.overdue],['Missing serial',stats.missing_serial],['Need location',stats.without_location],['Ordered',(stats.statuses||[]).find((s:R)=>s.status==='ordered')?.total??0]].map(([label,value])=><div className="p-3 border bg-white rounded-lg" key={text(label)}><b className="text-xl">{value}</b><p className="text-sm">{label}</p></div>)}</div>}
   <form className="flex gap-2" onSubmit={e=>{e.preventDefault();void loadInventory();}}><input className={base} placeholder="Search customer, model, PO, serial, equipment ID" value={q} onChange={e=>setQ(e.target.value)}/><button className={button}>Search</button></form>
   <p className="text-sm text-gray-600">Select units to print their labels together.</p>
   <div className="space-y-2">{units.map(u=><article key={u.equipment_id} className="p-3 bg-white border rounded-lg flex gap-3 items-start">
    <input type="checkbox" aria-label={'Select '+u.equipment_id} checked={selected.includes(u.equipment_id)}
-    onChange={e=>setSelected(s=>e.target.checked?[...s,u.equipment_id]:s.filter(x=>x!==u.equipment_id))}/>
+    onChange={e=>{setSelected(s=>e.target.checked?[...s,u.equipment_id]:s.filter(x=>x!==u.equipment_id));setPrintIds([]);setLastPdf(null);}}/>
    <div className="flex-1 min-w-0"><b>{u.customer_name}</b> · {u.type_name} · {u.ordered_model}<p className="text-sm">PO {u.po_number||'—'} · {u.status} · {u.equipment_id}</p></div>
    <button className="underline text-[#6B1A2C]" onClick={()=>{setScan(u.equipment_id);void findUnit(u.equipment_id);}}>Open</button>
    </article>)}</div>
@@ -180,6 +182,7 @@ function App(){
    <p>{unit.equipment_id} · {unit.status} · PO {unit.po_number||'—'}</p><p>Ordered model: {unit.ordered_model||'Not specified'}</p>
    <label className="block">Serial number <input className={base} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="Scan/type serial (may be blank)"/></label>
    <label className="block">Confirmed model <input className={base} value={model} onChange={e=>setModel(e.target.value)}/></label>
+   <label className="block">Warehouse zone <select className={base} value={zoneId} onChange={e=>setZoneId(e.target.value)}><option value="">Not assigned yet</option>{zones.map(z=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}</select></label>
    <label className="block">Location notes <input className={base} value={locationNote} onChange={e=>setLocationNote(e.target.value)}/></label>
    <button className={button} disabled={!can('receive_edit_equipment')||unit.status!=='ordered'} onClick={receive}>Mark received</button>
   </article>:<div className="bg-white rounded-lg p-4">Scan an equipment QR code to open its receiving record.</div>}
@@ -205,7 +208,9 @@ function App(){
    <button className={button} onClick={confirmPrint} disabled={!printIds.length||!lastPdf}>Confirm physically printed</button>
   </div>
   <p className="text-sm">Print using <strong>Actual Size / 100%</strong>. Downloading a PDF does not mark equipment labels as physically printed.</p>
+  {reprints.length>0&&<div className="border-t pt-3"><h3 className="font-bold">Reprint needed ({reprints.length})</h3>{reprints.map(u=><button key={u.equipment_id} className="underline block" onClick={()=>{setSelected([u.equipment_id]);setPrintIds([]);setLastPdf(null);}}>{u.customer_name} · {u.equipment_id}</button>)}</div>}
  </section>}
+ {tab==='staff'&&can('manage_staff')&&<StaffPanel/>}
  {tab==='reviews'&&<section className="space-y-3">
   <h2 className="text-xl font-bold">Needs attention</h2>
   <p>Model discrepancies, duplicate serials, and unregistered arrivals are flagged without blocking receiving.</p>
