@@ -280,6 +280,40 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     ).toBeVisible();
     await expect(page.getByTestId('role-badge')).toHaveText('Editor');
 
+    // Exercise the real equipment UI against the same isolated D1, not a front-end mock.
+    await context.setExtraHTTPHeaders({ 'Cf-Access-Jwt-Assertion': tokens.admin });
+    await visit('/equipment/');
+    await expect(page.getByRole('heading', { name: 'Sun City Equipment' })).toBeVisible();
+    await page.getByRole('button', { name: 'Order equipment' }).click();
+    await page.getByPlaceholder('Keep leading zeroes').fill('0007732');
+    await page.getByRole('combobox', { name: /Type/ }).selectOption('ety-22222222');
+    await page.getByRole('button', { name: 'Save 1 equipment units' }).click();
+    await expect(page.getByRole('status')).toContainText('Ordered 1 individual units');
+    const browserEquipment = await db.prepare("SELECT equipment_id,status FROM equipment WHERE po_number='0007732'").first();
+    assert.ok(browserEquipment && /^eqp-[2-9a-hj-km-np-z]{8}$/.test(browserEquipment.equipment_id));
+    assert.equal(browserEquipment.status, 'ordered');
+    await page.reload();
+    await page.getByRole('button', { name: 'Receive / scan' }).click();
+    await page.getByPlaceholder('PO, customer, batch ID, requested by').fill('0007732');
+    await page.getByRole('button', { name: 'Find orders' }).click();
+    await page.getByRole('button', { name: /PO 0007732/ }).click();
+    await expect(page.getByText('0 received · 1 remaining · 0 cancelled · 1 total').first()).toBeVisible();
+    await page.getByRole('button', { name: new RegExp(browserEquipment.equipment_id) }).click();
+    await page.getByPlaceholder('Scan/type serial (may be blank)').fill('BROWSER-SERIAL-1');
+    await page.getByRole('button', { name: 'Mark received' }).click();
+    await expect(page.getByRole('status')).toContainText('Received '+browserEquipment.equipment_id);
+    assert.equal(await scalar("SELECT COUNT(*) FROM equipment WHERE po_number='0007732' AND status='received' AND serial_number='BROWSER-SERIAL-1'"),1);
+    const equipmentLocation = await post('/api/equipment/'+browserEquipment.equipment_id+'/place',
+      {version:2,x_in:120,y_in:500},{role:'admin'});
+    assert.equal(equipmentLocation.unit.marker_x_in,120);
+    assert.ok((await get('/api/equipment/map-markers',{role:'admin'})).items.some(x=>x.equipment_id===browserEquipment.equipment_id));
+    await page.reload();
+    await page.getByRole('button', { name: 'Find equipment' }).click();
+    await page.getByPlaceholder('Search customer, model, PO, serial, equipment ID').fill('0007732');
+    await page.getByRole('button', { name: 'Search',exact:true }).click();
+    await expect(page.getByRole('link',{name:'Show on warehouse map'})).toBeVisible();
+    await context.setExtraHTTPHeaders({ 'Cf-Access-Jwt-Assertion': tokens.editor });
+
     const beforeIssue = await Promise.all(parts.map((id) => get(`/api/parts/${id}`)));
     await visit('/packouts/?mode=mock');
     await expect(page.getByRole('heading', { name: 'Packouts & kits', exact: true })).toBeVisible();
@@ -338,7 +372,7 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
       (await get('/api/packouts')).items.find((row) => row.kit_id === kit.kit_id).status,
       'available',
     );
-    assert.equal(routes.size, 7);
+    assert.equal(routes.size, 8);
     assert.ok(browserApiRequests > 15);
     assert.deepEqual(pageErrors, []);
     return {
