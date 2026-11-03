@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => ({
         map: resolve(root, 'map/index.html'),
         labels: resolve(root, 'labels/index.html'),
         packouts: resolve(root, 'packouts/index.html'),
+        equipment: resolve(root, 'equipment/index.html'),
       },
     },
   },
