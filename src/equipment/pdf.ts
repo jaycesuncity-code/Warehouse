@@ -31,7 +31,10 @@ export function avery5821Pdf(labels: EquipmentLabel[], testPage = false): Blob {
       const y=AVERY_5821.pageH-AVERY_5821.top-AVERY_5821.labelH-Math.floor(p/2)*AVERY_5821.rowStep;
       // Bold monochrome-safe band, legible on standard printer stock.
       stream += `0.5 w ${x} ${y} 288 180 re S\n`;
-      stream += `0.12 g ${x+5} ${y+146} 278 29 re f 1 g\n`;
+      // Customer labels are maroon with white type; STOCK labels are gold with dark type.
+      stream += label.is_stock ? '0.788 0.659 0.298 rg\n' : '0.420 0.102 0.173 rg\n';
+      stream += `${x+5} ${y+146} 278 29 re f\n`;
+      stream += label.is_stock ? '0 g\n' : '1 g\n';
       stream += text(x+10,y+156,label.is_stock?'STOCK':trim(label.customer_name,32),14);
       stream += '0 g\n';
       stream += text(x+9,y+125,'PO: '+trim(label.po_number,24),11);
