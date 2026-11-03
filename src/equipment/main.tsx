@@ -210,7 +210,7 @@ function App(){
    <label>Quantity <input className={base} type="number" min="1" max="25" value={line.quantity} onChange={e=>editLine(i,'quantity',Number(e.target.value))}/></label>
    <button className="underline" disabled={lines.length===1} onClick={()=>setLines(s=>s.filter((_,j)=>j!==i))}>Remove line</button>
   </div>)}
-  <div className="flex flex-wrap gap-2"><button className={base} style={{width:'auto'}} onClick={()=>setLines(s=>[...s,{equipment_type_id:'',manufacturer:'',model:'',quantity:1}])}>+ Add line</button>
+  <div className="flex flex-wrap gap-2"><button className={base} style={{width:'auto'}} disabled={lines.length>=10} onClick={()=>setLines(s=>[...s,{equipment_type_id:'',manufacturer:'',model:'',quantity:1}])}>+ Add line</button>
    <button className={button} disabled={!can('order_equipment')} onClick={order}>Save {lines.reduce((n,l)=>n+(Number(l.quantity)||0),0)} equipment units</button></div>
   {!can('order_equipment')&&<p role="note">Your administrator must grant <code>order_equipment</code> to place orders.</p>}
  </section>}
@@ -253,12 +253,12 @@ function App(){
  </section>}
  {tab==='labels'&&<section className="bg-white border rounded-xl p-4 space-y-3">
   <h2 className="text-xl font-bold">Avery 5821 equipment labels</h2>
-  <p>US Letter · 2 columns × 4 rows · 4 × 2.5 inches per label. QR contains only its equipment ID.</p>
+  <p>US Letter · 2 columns × 4 rows · 4 × 2.5 inches per label. QR contains only its equipment ID. Print up to 25 units per job.</p>
   <p>{selected.length} unit(s) selected{lastBatch?' · Last order batch '+lastBatch:''}</p>
   {lastBatch&&<button className="underline text-[#6B1A2C]" onClick={cancelBatch}>Cancel remaining ordered units from last batch</button>}
   <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{setSkip(Number(e.target.value));setLastPdf(null);setPrintIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
   <div className="flex gap-2 flex-wrap">
-   <button className={button} onClick={prepare} disabled={!selected.length&&!unit&&!lastBatch}>Generate / download equipment PDF</button>
+   <button className={button} onClick={prepare} disabled={(!selected.length&&!unit&&!lastBatch)||selected.length>25}>Generate / download equipment PDF</button>
    <button className={base} style={{width:'auto'}} onClick={printCalibration}>Download 1-inch alignment test</button>
    <button className={button} onClick={confirmPrint} disabled={!printIds.length||!lastPdf}>Confirm physically printed</button>
   </div>
