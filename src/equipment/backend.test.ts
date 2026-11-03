@@ -22,7 +22,7 @@ describe('scoped D1 equipment workflows',()=>{
   const customers=await call('/customers');
   expect(types.status).toBe(200);
   expect((types.body.items as unknown[]).length).toBeGreaterThan(0);
-  expect((customers.body.items as unknown[]).some((row:any)=>row.is_stock===1)).toBe(true);
+  expect((customers.body.items as unknown[]).some((row:unknown)=>(row as {is_stock:number}).is_stock===1)).toBe(true);
   expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM parts').get()).toEqual({n:0});
  });
  it('creates 10 individually identified units in one atomic order, preserving leading zeros',async()=>{
