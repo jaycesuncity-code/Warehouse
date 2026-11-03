@@ -144,6 +144,43 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const value={customer_id:id('cus'),display_name:name,normalized_name:norm,similarity_key:similarityKey(name),created_by:me.email,created_at:now(),updated_at:now()};
       return save([insert(db,'customers',value),event(db,me,'create','equipment_customer',value.customer_id,{},value)],{customer:value,similar_customers:similar},201);
     }
+    const customerMerge = path.match(/^\/api\/customers\/(cus-[a-z0-9]{8})\/merge$/);
+    if (customerMerge && method === 'POST') {
+      if (me.role !== 'admin') return fail(403,'forbidden','Admin permission required for customer merges.');
+      const from = await one(db,'SELECT * FROM customers WHERE customer_id=?',customerMerge[1]);
+      const into = await one(db,'SELECT * FROM customers WHERE customer_id=? AND active=1',str(body.into_customer_id));
+      if (!from || !into) return fail(404,'not_found','Customer not found.');
+      if (from.is_stock || into.is_stock || from.active !== 1 || from.customer_id === into.customer_id) return fail(400,'validation','STOCK and inactive customers cannot be merged.');
+      const countRow = await one(db,'SELECT count(*) AS total FROM equipment WHERE customer_id=?',from.customer_id);
+      const batchRow = await one(db,'SELECT count(*) AS total FROM equipment_entry_batches WHERE customer_id=?',from.customer_id);
+      const statements=[
+        sql(db,'UPDATE equipment SET customer_id=?,version=version+1,updated_at=?,updated_by_email=? WHERE customer_id=?',into.customer_id,now(),me.email,from.customer_id),
+        sql(db,'UPDATE equipment_entry_batches SET customer_id=?,version=version+1 WHERE customer_id=?',into.customer_id,from.customer_id),
+        sql(db,'UPDATE customers SET active=0,merged_into_customer_id=?,version=version+1,updated_at=? WHERE customer_id=? AND active=1',into.customer_id,now(),from.customer_id),
+        event(db,me,'merge','equipment_customer',String(from.customer_id),from,{merged_into_customer_id:into.customer_id})
+      ];
+      return save(statements,{from_customer_id:from.customer_id,into_customer_id:into.customer_id,affected_units:countRow?.total||0,affected_batches:batchRow?.total||0});
+    }
+    if (path === '/api/equipment/reports' && method === 'GET') {
+      const counts = await list(db,`SELECT status,COUNT(*) AS total FROM equipment GROUP BY status`);
+      const overdue = await one(db,"SELECT count(*) AS total FROM equipment WHERE status='ordered' AND expected_date < date('now')");
+      const missingSerial = await one(db,`SELECT count(*) AS total FROM equipment e JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id
+        WHERE e.received_at IS NOT NULL AND t.serial_expected=1 AND (e.serial_normalized IS NULL OR e.serial_normalized='')`);
+      const withoutLocation = await one(db,`SELECT count(*) AS total FROM equipment WHERE received_at IS NOT NULL AND zone_id IS NULL AND status IN ('received','in_stock','reserved')`);
+      return reply({statuses:counts,overdue:overdue?.total??0,missing_serial:missingSerial?.total??0,without_location:withoutLocation?.total??0});
+    }
+    if (path === '/api/equipment/labels/reprint-needed' && method === 'GET') {
+      const candidates = await list(db,`SELECT e.equipment_id,e.*,c.display_name AS customer_name,c.is_stock,
+       t.name AS type_name,l.ordered_qty,p.label_fingerprint AS printed_fingerprint
+       FROM equipment e JOIN customers c ON c.customer_id=e.customer_id JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id
+       LEFT JOIN equipment_batch_lines l ON l.entry_line_id=e.entry_line_id
+       JOIN equipment_label_prints p ON p.label_print_id=(
+          SELECT label_print_id FROM equipment_label_prints x WHERE x.equipment_id=e.equipment_id
+          AND x.confirmed_printed_at IS NOT NULL ORDER BY x.confirmed_printed_at DESC,x.label_print_id DESC LIMIT 1
+       ) LIMIT 200`);
+      return reply({items:candidates.filter(r=>labelFingerprint(labelRecord(r))!==r.printed_fingerprint)
+        .map(r=>({equipment_id:r.equipment_id,customer_name:r.customer_name,po_number:r.po_number}))});
+    }
     if (path === '/api/equipment/models' && method === 'GET') {
       const typeId=str(url.searchParams.get('type_id')), q=str(url.searchParams.get('q'),100);
       return reply({items:await list(db,`SELECT manufacturer,ordered_model AS model,COUNT(*) AS uses FROM equipment
