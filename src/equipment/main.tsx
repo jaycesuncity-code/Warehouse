@@ -4,6 +4,7 @@ import { isEquipmentId } from '../shared/ids';
 import { avery5821Pdf, type EquipmentLabel } from './pdf';
 import '../shared/ui/styles.css';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type R = Record<string, any>;
 type Tab = 'orders'|'receive'|'inventory'|'reviews'|'labels';
 const base = 'rounded-lg border border-gray-300 bg-white px-3 py-2 w-full text-gray-900';
@@ -25,6 +26,7 @@ function App(){
  const [customerId,setCustomerId]=useState('cus-stk22222'),[po,setPo]=useState(sessionStorage.getItem('equipment.po')??'');
  const [requester,setRequester]=useState(''),[expected,setExpected]=useState(''),[vendor,setVendor]=useState('');
  const [lines,setLines]=useState<R[]>([{equipment_type_id:'',manufacturer:'',model:'',quantity:1}]);
+ const [unregisteredType,setUnregisteredType]=useState('');
  const [scan,setScan]=useState(new URLSearchParams(location.search).get('id')??''),[unit,setUnit]=useState<R|null>(null);
  const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState('');
  const [lastBatch,setLastBatch]=useState(''),[skip,setSkip]=useState(0),[printIds,setPrintIds]=useState<string[]>([]);
@@ -49,7 +51,6 @@ function App(){
  useEffect(()=>{if(tab==='reviews')loadReviews();if(tab==='inventory')loadInventory();},[tab]);
  useEffect(()=>{if(scan&&isEquipmentId(scan.trim().toLowerCase()))void findUnit(scan);},[]);
  const filteredCustomers=useMemo(()=>customers.filter(c=>text(c.display_name).toLowerCase().includes(customerSearch.toLowerCase())).slice(0,15),[customers,customerSearch]);
- const selectedUnits=units.filter(u=>selected.includes(u.equipment_id));
  function editLine(i:number,key:string,value:unknown){setLines(old=>old.map((line,j)=>i===j?{...line,[key]:value}:line));}
  async function createCustomer(){
   try{
@@ -82,7 +83,7 @@ function App(){
  }
  async function receiveUnregistered(){
   try{
-   const type=types[0]?.equipment_type_id;
+   const type=unregisteredType;
    if(!type)throw new Error('No equipment types available.');
    const result=await req('/equipment/receive-unregistered','POST',{customer_id:customerId,equipment_type_id:type,model:model,serial_number:serial,po_number:po});
    setUnit(result.unit);setScan(result.unit.equipment_id);success('Unregistered equipment saved and flagged for review. Print its new label.');
@@ -183,8 +184,13 @@ function App(){
    <button className={button} disabled={!can('receive_edit_equipment')||unit.status!=='ordered'} onClick={receive}>Mark received</button>
   </article>:<div className="bg-white rounded-lg p-4">Scan an equipment QR code to open its receiving record.</div>}
   <details className="bg-white p-4 rounded-lg border"><summary className="font-semibold cursor-pointer">Receive an unregistered unit (no prior order)</summary>
-    <p className="my-2 text-sm">Uses the selected customer, PO and current model/serial. Choose the equipment type below before saving.</p>
-    <button className={button} disabled={!can('receive_edit_equipment')} onClick={receiveUnregistered}>Create received unit and review flag</button>
+    <p className="my-2 text-sm">Enter the customer, PO and equipment details. Missing order history is flagged for review.</p>
+    <label className="block">Equipment type<select className={base} value={unregisteredType} onChange={e=>setUnregisteredType(e.target.value)}><option value="">Choose type…</option>{types.map(t=><option key={t.equipment_type_id} value={t.equipment_type_id}>{t.name}</option>)}</select></label>
+    <label className="block">Customer<select className={base} value={customerId} onChange={e=>setCustomerId(e.target.value)}>{customers.map(c=><option key={c.customer_id} value={c.customer_id}>{c.display_name}</option>)}</select></label>
+    <label className="block">PO number<input className={base} value={po} onChange={e=>setPo(e.target.value)}/></label>
+    <label className="block">Model<input className={base} value={model} onChange={e=>setModel(e.target.value)}/></label>
+    <label className="block">Serial<input className={base} value={serial} onChange={e=>setSerial(e.target.value)}/></label>
+    <button className={button} disabled={!can('receive_edit_equipment')||!unregisteredType} onClick={receiveUnregistered}>Create received unit and review flag</button>
   </details>
   {lastBatch&&<button className={button} disabled={!can('receive_edit_equipment')} onClick={receiveBatch}>Receive all remaining ordered units in last batch, serials later</button>}
  </section>}
