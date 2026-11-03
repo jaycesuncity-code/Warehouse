@@ -123,7 +123,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       if (body.active !== undefined) fields.active=body.active===true?1:0;
       if (body.serial_expected !== undefined) fields.serial_expected=body.serial_expected===true?1:0;
       if (body.default_manufacturer !== undefined) fields.default_manufacturer=str(body.default_manufacturer)||null;
-      const updated = {...prior,...fields,version:Number(prior.version)+1,updated_at:now()};
+      const updated: Row = {...prior,...fields,version:Number(prior.version)+1,updated_at:now()};
       if (!str(updated.name)) return fail(400,'validation','Name is required.');
       return save([sql(db,'UPDATE equipment_types SET name=?,department=?,active=?,serial_expected=?,default_manufacturer=?,version=?,updated_at=? WHERE equipment_type_id=? AND version=?',
         updated.name,updated.department,updated.active,updated.serial_expected,updated.default_manufacturer,updated.version,updated.updated_at,typeEdit[1],prior.version),
@@ -250,7 +250,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
         const area=await one(db,'SELECT shelf_id FROM shelves WHERE shelf_id=? AND kind=\'floor_area\' AND zone_id=? AND active=1',newArea,newZone);
         if(!area)return fail(400,'validation','Equipment location must be an active floor-area shelf within its zone.');
       }
-      const changed={...prior,...patch,version:Number(prior.version)+1,updated_at:now(),updated_by_email:me.email};
+      const changed: Row = {...prior,...patch,version:Number(prior.version)+1,updated_at:now(),updated_by_email:me.email};
       const columns=Object.keys(patch).concat(['version','updated_at','updated_by_email']);
       const st=[sql(db,`UPDATE equipment SET ${columns.map(c=>c+'=?').join(',')} WHERE equipment_id=? AND version=?`,
         ...columns.map(c=>changed[c]),unitId,prior.version),event(db,me,action,'equipment',unitId,prior,changed)];
