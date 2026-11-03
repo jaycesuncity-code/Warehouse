@@ -370,7 +370,11 @@ try {
     const wrongKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
     await get('/api/me', { assertion: token(emails.admin, {}, wrongKey), expected: 401 });
     for (const role of ['admin', 'editor', 'viewer']) {
-      assert.deepEqual(await get('/api/me', { role }), { email: emails[role], name: emails[role], role });
+      const identity = await get('/api/me', { role });
+      assert.equal(identity.email, emails[role]);
+      assert.equal(identity.name, emails[role]);
+      assert.equal(identity.role, role);
+      assert.ok(Array.isArray(identity.permissions), 'new permissions contract should be present');
     }
     await get('/api/health', { expected: 503 });
   });
