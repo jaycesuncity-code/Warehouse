@@ -224,7 +224,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const head=asObj(body.header), lines=Array.isArray(body.lines)?body.lines.map(asObj):[];
       const customerId=str(head.customer_id), customer=await one(db,'SELECT customer_id FROM customers WHERE customer_id=? AND active=1',customerId);
       if (!customer) return fail(400,'validation','Select a valid customer.');
-      if (!lines.length||lines.length>25) return fail(400,'validation','Include 1 to 25 lines.');
+      if (!lines.length||lines.length>10) return fail(400,'validation','Include 1 to 10 equipment lines per order.');
       const total=lines.reduce((n,l)=>n+number(l.quantity??1),0);
       if(total<1||total>25||lines.some(l=>number(l.quantity??1)<1)) return fail(400,'validation','Order contains at most 25 individual units.');
       const typeRows=await list(db,'SELECT equipment_type_id FROM equipment_types WHERE active=1');
@@ -358,7 +358,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
     }
     if(path==='/api/equipment/labels/prepare'&&method==='POST'){
       const ids=Array.isArray(body.equipment_ids)?body.equipment_ids.map(x=>str(x)):[],skip=number(body.skip_first_positions??0);
-      if(!ids.length||ids.length>100||new Set(ids).size!==ids.length||skip<0||skip>7)return fail(400,'validation','Select 1–100 unique equipment units and skip 0–7 positions.');
+      if(!ids.length||ids.length>25||new Set(ids).size!==ids.length||skip<0||skip>7)return fail(400,'validation','Select 1–25 unique equipment units and skip 0–7 positions.');
       const found=await list(db,`SELECT e.*,c.display_name AS customer_name,c.is_stock,t.name AS type_name,l.ordered_qty FROM equipment e
         JOIN customers c ON c.customer_id=e.customer_id JOIN equipment_types t ON t.equipment_type_id=e.equipment_type_id
         LEFT JOIN equipment_batch_lines l ON l.entry_line_id=e.entry_line_id
@@ -380,7 +380,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
     }
     if(path==='/api/equipment/labels/confirm'&&method==='POST'){
       const ids=Array.isArray(body.prepared_print_ids)?body.prepared_print_ids.map(x=>str(x)):[];
-      if(!ids.length||ids.length>100||new Set(ids).size!==ids.length)return fail(400,'validation','Provide valid label print IDs.');
+      if(!ids.length||ids.length>25||new Set(ids).size!==ids.length)return fail(400,'validation','Provide 1–25 valid label print IDs.');
       const prints=await list(db,'SELECT p.*,e.entered_by_email FROM equipment_label_prints p JOIN equipment e ON e.equipment_id=p.equipment_id WHERE p.label_print_id IN (SELECT value FROM json_each(?))',JSON.stringify(ids));
       if(prints.length!==ids.length||prints.some(p=>p.confirmed_printed_at))return fail(409,'status_conflict','Unknown or already confirmed label print.');
       if(prints.some(p=>!allowed(me,rights,'print_labels')&&!allowed(me,rights,'receive_edit_equipment')&&!(allowed(me,rights,'order_equipment')&&p.entered_by_email===me.email)))return fail(403,'forbidden','Print permission required.');
