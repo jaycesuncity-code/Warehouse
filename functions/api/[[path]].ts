@@ -1,4 +1,5 @@
 import { access, accessConfiguration } from '../lib/auth';
+import { equipmentRoute, permissions } from '../lib/equipment';
 import {
   load,
   persist,
@@ -115,10 +116,19 @@ export async function onRequest({ request, env }: Ctx): Promise<Response> {
     );
   const me = await access({ request, env });
   if (!me) return error(401, 'unauthorized', 'Verified Cloudflare Access JWT required.');
-  if (url.pathname.replace(/\/$/, '') === '/api/me' && request.method === 'GET') return response(me);
 
   const db = env['warehouse-db'];
   if (!db) return error(503, 'database_unavailable', 'The warehouse-db D1 binding is missing.');
+  if (url.pathname === '/api/me' && request.method === 'GET') {
+    try { return response({ ...me, permissions: await permissions(db, me) }); }
+    catch { return response({ ...me, permissions: me.role === 'admin' ? ['admin'] : [] }); }
+  }
+  if (url.pathname.startsWith('/api/equipment') || url.pathname.startsWith('/api/customers') || url.pathname.startsWith('/api/staff')) {
+    let rights: string[];
+    try { rights = await permissions(db, me); }
+    catch { return error(503, 'database_unavailable', 'Equipment permissions have not been migrated.'); }
+    return (await equipmentRoute(request, db, me, rights)) ?? error(404, 'not_found', 'Unknown equipment endpoint.');
+  }
   if (url.pathname.replace(/\/$/, '') === '/api/health' && request.method === 'GET') {
     try {
       if (!(await healthy(db))) throw new Error('Required warehouse schema is missing');
