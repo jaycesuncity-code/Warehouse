@@ -127,6 +127,15 @@ function App(){
    success('Received '+result.affected+' units; serials can be captured later.');await loadInventory();
   }catch(e){report(e);}
  }
+ async function cancelBatch(){
+  if(!lastBatch||!window.confirm('Cancel all units still ordered in this batch? Received units will not be cancelled.'))return;
+  try{
+   const result=await req('/equipment/batches/'+lastBatch+'/cancel','POST',{});
+   setSelected([]);setPrintIds([]);setLastPdf(null);
+   success('Cancelled '+result.affected+' remaining ordered units. The audit history is preserved.');
+   await loadInventory();
+  }catch(e){report(e);}
+ }
  async function prepare(){
   try{
    let ids=selected.length?selected:unit?[unit.equipment_id]:[];
@@ -246,6 +255,7 @@ function App(){
   <h2 className="text-xl font-bold">Avery 5821 equipment labels</h2>
   <p>US Letter · 2 columns × 4 rows · 4 × 2.5 inches per label. QR contains only its equipment ID.</p>
   <p>{selected.length} unit(s) selected{lastBatch?' · Last order batch '+lastBatch:''}</p>
+  {lastBatch&&<button className="underline text-[#6B1A2C]" onClick={cancelBatch}>Cancel remaining ordered units from last batch</button>}
   <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{setSkip(Number(e.target.value));setLastPdf(null);setPrintIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
   <div className="flex gap-2 flex-wrap">
    <button className={button} onClick={prepare} disabled={!selected.length&&!unit&&!lastBatch}>Generate / download equipment PDF</button>
