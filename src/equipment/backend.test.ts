@@ -41,7 +41,7 @@ describe('scoped D1 equipment workflows',()=>{
   expect(db.sqlite.prepare('SELECT count(*) AS n FROM stock').get()).toEqual({n:0});
  });
  it('retries identical order using same receipt without creating duplicates',async()=>{
-  const payload={header:{customer_id:stockCustomer,po_number:'123'},lines:[{equipment_type_id:furnace,model:'M',quantity:2}]};
+  const payload={header:{customer_id:stockCustomer,po_number:'123'},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:2}]};
   const a=await call('/equipment/orders','POST',payload,'same-key-123');
   const b=await call('/equipment/orders','POST',payload,'same-key-123');
   expect(a.status).toBe(201);expect(b.status).toBe(201);
@@ -49,7 +49,7 @@ describe('scoped D1 equipment workflows',()=>{
   expect(db.sqlite.prepare('SELECT count(*) AS n FROM equipment').get()).toEqual({n:2});
  });
  it('blocks view-only order and receiving mutations',async()=>{
-  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]},undefined,viewer);
+  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:1}]},undefined,viewer);
   expect(res.status).toBe(403);
  });
  it('receives a unit with model mismatch and duplicate serial without blocking either save',async()=>{
@@ -67,7 +67,7 @@ describe('scoped D1 equipment workflows',()=>{
   expect(stale.status).toBe(409);
  });
  it('prepares eight-up physical labels and confirms independently from equipment stock',async()=>{
-  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:9}]});
+  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:9}]});
   const ids=res.body.unit_ids as string[];
   const prepared=await call('/equipment/labels/prepare','POST',{equipment_ids:ids,skip_first_positions:2});
   expect(prepared.status).toBe(200);
@@ -82,16 +82,16 @@ describe('scoped D1 equipment workflows',()=>{
 
  it('rejects an idempotency key reused with a changed order',async()=>{
   const first=await call('/equipment/orders','POST',
-    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]},'changed-order-0001');
+    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:1}]},'changed-order-0001');
   const second=await call('/equipment/orders','POST',
-    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:3}]},'changed-order-0001');
+    {header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:3}]},'changed-order-0001');
   expect(first.status).toBe(201);
   expect(second.status).toBe(409);
   expect(db.sqlite.prepare('SELECT COUNT(*) AS total FROM equipment').get()).toEqual({total:1});
  });
 
  it('places equipment at a verified map coordinate, rejects outside rooms and records an event',async()=>{
-  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]});
+  const res=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:1}]});
   const unitId=(res.body.unit_ids as string[])[0];
   expect((await call('/equipment/'+unitId+'/place','POST',{version:1,x_in:120,y_in:500})).status).toBe(200);
   const markers=await call('/equipment/map-markers');
@@ -101,17 +101,13 @@ describe('scoped D1 equipment workflows',()=>{
   expect(history.total).toBe(1);
  });
 
- it('permits clearing required textual metadata without writing NULL and rejects unknown customers',async()=>{
-  const order=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,po_number:'REMOVEME'},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',quantity:1}]});
+ it('rejects edits to shared order fields via an individual unit',async()=>{
+  const order=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,po_number:'REMOVEME'},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:1}]});
   const equipmentId=(order.body.unit_ids as string[])[0];
-  const cleared=await call('/equipment/'+equipmentId,'PATCH',{version:1,changes:{po_number:'',manufacturer:'',notes:'',vendor:''}});
-  expect(cleared.status).toBe(200);
-  const row=db.sqlite.prepare('SELECT po_number,manufacturer,notes,vendor FROM equipment WHERE equipment_id=?').get(equipmentId);
-  expect(row).toEqual({po_number:'',manufacturer:'',notes:'',vendor:''});
-  const invalid=await call('/equipment/'+equipmentId,'PATCH',{version:2,changes:{customer_id:'cus-22222222'}});
-  expect(invalid.status).toBe(400);
+  const blocked=await call('/equipment/'+equipmentId,'PATCH',{version:1,changes:{po_number:'new'}});
+  expect(blocked.status).toBe(400);
+  expect(db.sqlite.prepare('SELECT po_number FROM equipment WHERE equipment_id=?').get(equipmentId)).toEqual({po_number:'REMOVEME'});
  });
-
  it('does not duplicate an unregistered receipt after a lost response and a same-key retry',async()=>{
   const body={customer_id:stockCustomer,equipment_type_id:furnace,model:'Test fan coil',serial_number:'SER-42',po_number:'00042'};
   const first=await call('/equipment/receive-unregistered','POST',body,'unregistered-retry-42');
@@ -139,7 +135,7 @@ describe('scoped D1 equipment workflows',()=>{
 
  it('returns the same label preparation and print-confirmation receipts when responses are lost',async()=>{
   const ordered=await call('/equipment/orders','POST',{
-   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:2}]
+   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:2}]
   },'labels-order-42');
   const request={equipment_ids:ordered.body.unit_ids as string[],skip_first_positions:3};
   const a=await call('/equipment/labels/prepare','POST',request,'prepare-labels-42');
@@ -158,7 +154,7 @@ describe('scoped D1 equipment workflows',()=>{
 
  it('replays marker placement without changing version twice and rejects stale placement',async()=>{
   const order=await call('/equipment/orders','POST',{
-   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]
+   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'M',quantity:1}]
   },'map-order-42');
   const equipmentId=(order.body.unit_ids as string[])[0];
   const body={version:1,x_in:120,y_in:500};
@@ -173,5 +169,66 @@ describe('scoped D1 equipment workflows',()=>{
   expect((markers.body.items as {equipment_id:string;marker_x_in:number;marker_y_in:number}[])
    .some(marker=>marker.equipment_id===equipmentId&&marker.marker_x_in===120&&marker.marker_y_in===500)).toBe(true);
   expect(db.sqlite.prepare("SELECT COUNT(*) AS n FROM events WHERE action='place' AND entity='equipment'").get()).toEqual({n:1});
+ });
+});
+
+describe('equipment order management',()=>{
+ const line=(quantity=2)=>({equipment_type_id:furnace,manufacturer:'Carrier',model:'ABC',quantity});
+ it('requires explicit Unknown acknowledgments and creates review records',async()=>{
+  const rejected=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]});
+  expect(rejected.status).toBe(400);
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,manufacturer_unknown:true,model_unknown:true,quantity:2}]});
+  expect(created.status).toBe(201);
+  const details=await call('/equipment/batches/'+created.body.batch_id);
+  expect((details.body.lines as {units:unknown[]}[])[0].units).toHaveLength(2);
+  expect(db.sqlite.prepare("SELECT count(*) AS n FROM warehouse_review_items WHERE issue_code IN ('MISSING_MANUFACTURER','MISSING_MODEL')").get()).toEqual({n:4});
+ });
+ it('filters outstanding, partial and closed batches using unit status',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,po_number:'000123'},lines:[line()]});
+  const batchId=created.body.batch_id as string;
+  expect((await call('/equipment/batches')).body.items).toEqual(expect.arrayContaining([expect.objectContaining({entry_batch_id:batchId})]));
+  expect((await call('/equipment/batches?q=ABC&filter=all')).body.items).toEqual(expect.arrayContaining([expect.objectContaining({entry_batch_id:batchId})]));
+  const firstId=(created.body.unit_ids as string[])[0];
+  expect((await call('/equipment/'+firstId+'/receive','POST',{version:1,confirmed_model:'ABC'})).status).toBe(200);
+  expect((await call('/equipment/batches?filter=partial')).body.items).toEqual(expect.arrayContaining([expect.objectContaining({entry_batch_id:batchId})]));
+  const before=await call('/equipment/batches/'+batchId);
+  expect(before.body.status).toBe('Partially received');
+  expect((await call('/equipment/batches/'+batchId+'/cancel','POST',{version:(before.body.batch as {version:number}).version,reason:'Equipment changed'})).status).toBe(200);
+  expect((await call('/equipment/batches')).body.items).not.toEqual(expect.arrayContaining([expect.objectContaining({entry_batch_id:batchId})]));
+  expect((await call('/equipment/batches?filter=closed')).body.items).toEqual(expect.arrayContaining([expect.objectContaining({entry_batch_id:batchId})]));
+ });
+ it('preserves original equipment IDs during idempotent quantity increases and audited reductions',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[line()]});
+  const batchId=created.body.batch_id as string,original=created.body.unit_ids as string[];
+  const before=await call('/equipment/batches/'+batchId);
+  const entry_line_id=(before.body.lines as {entry_line_id:string}[])[0].entry_line_id;
+  const edit={version:1,header:{po_number:'000888'},lines:[{entry_line_id,...line(3)}]};
+  const first=await call('/equipment/batches/'+batchId,'PATCH',edit,'edit-existing-42');
+  const retry=await call('/equipment/batches/'+batchId,'PATCH',edit,'edit-existing-42');
+  expect(first.status).toBe(200);expect(retry.body).toEqual(first.body);
+  const latest=await call('/equipment/batches/'+batchId);
+  expect(latest.body.total).toBe(3);
+  expect((latest.body.units as {equipment_id:string}[]).map(u=>u.equipment_id)).toEqual(expect.arrayContaining(original));
+  expect((latest.body.batch as {po_number:string}).po_number).toBe('000888');
+  expect((await call('/equipment/batches/'+batchId,'PATCH',edit)).status).toBe(409);
+  const reduction={version:2,lines:[{entry_line_id,...line(2)}],cancel_unit_ids:[original[0]],reason:'Supplier unavailable'};
+  expect((await call('/equipment/batches/'+batchId,'PATCH',reduction)).status).toBe(200);
+  expect(db.sqlite.prepare('SELECT cancel_reason FROM equipment WHERE equipment_id=?').get(original[0])).toEqual({cancel_reason:'Supplier unavailable'});
+  expect(db.sqlite.prepare('SELECT ordered_qty FROM equipment_batch_lines WHERE entry_line_id=?').get(entry_line_id)).toEqual({ordered_qty:3});
+ });
+ it('allows any orderer, not a receiver-only employee, to cancel a different employee order',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[line()]});
+  const id=(created.body.unit_ids as string[])[0];
+  const orderer:Me={email:'orderer@example.com',name:'Orderer',role:'viewer'};
+  const receiver:Me={email:'receiver@example.com',name:'Receiver',role:'viewer'};
+  for(const employee of [orderer,receiver])db.sqlite.prepare('INSERT INTO staff_accounts(email,display_name,created_at,updated_at) VALUES(?,?,?,?)').run(employee.email,employee.name,'2026-11-04','2026-11-04');
+  db.sqlite.prepare('INSERT INTO staff_permissions(email,permission,granted_by_email,granted_at) VALUES(?,?,?,?)').run(orderer.email,'order_equipment',admin.email,'2026-11-04');
+  db.sqlite.prepare('INSERT INTO staff_permissions(email,permission,granted_by_email,granted_at) VALUES(?,?,?,?)').run(receiver.email,'receive_edit_equipment',admin.email,'2026-11-04');
+  expect((await call('/equipment/'+id+'/cancel','POST',{version:1},undefined,orderer)).status).toBe(400);
+  expect((await call('/equipment/'+id+'/cancel','POST',{version:1,reason:'Ordered by mistake'},undefined,receiver)).status).toBe(403);
+  expect((await call('/equipment/'+id+'/cancel','POST',{version:1,reason:'Ordered by mistake'},undefined,orderer)).status).toBe(200);
+  expect(db.sqlite.prepare('SELECT status,cancel_reason FROM equipment WHERE equipment_id=?').get(id)).toEqual({status:'cancelled',cancel_reason:'Ordered by mistake'});
+  expect((await call('/equipment/'+id+'/receive','POST',{version:2})).status).toBe(409);
+  expect((await call('/equipment/labels/prepare','POST',{equipment_ids:[id],skip_first_positions:0})).status).toBe(409);
  });
 });

@@ -133,6 +133,7 @@ describe('forward migrations preserve populated warehouse records', () => {
       const roomsBeforeEquipment = db.prepare('SELECT * FROM zones ORDER BY zone_id').all();
       db.exec(migration('0006_equipment_foundation.sql'));
       db.exec(migration('0007_equipment_map_positions.sql'));
+       db.exec(migration('0008_equipment_order_management.sql'));
       expect(db.prepare('SELECT * FROM stock').all()).toEqual(stockBeforeEquipment);
       expect(db.prepare('SELECT * FROM parts ORDER BY part_id').all()).toEqual(partsBeforeEquipment);
       expect(db.prepare('SELECT * FROM zones ORDER BY zone_id').all()).toEqual(roomsBeforeEquipment);

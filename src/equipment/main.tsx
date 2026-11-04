@@ -1,8 +1,9 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { isEquipmentId } from '../shared/ids';
 import { avery5821Pdf, type EquipmentLabel } from './pdf';
 import { StaffPanel } from './StaffPanel';
+import { EquipmentOrdersPanel } from './EquipmentOrdersPanel';
 import { browserEquipmentStore, EquipmentApiError, createMutation, failureDisposition, performMutation, readPendingMutation, type MutationMethod, type PendingMutation } from './recoverable';
 import '../shared/ui/styles.css';
 
@@ -31,14 +32,10 @@ function rememberEquipmentChoice(key:string,value:string){
  try{browserEquipmentStore.setItem(key,value);}catch{/* Nonessential preference. */}
 }
 function App(){
- const [tab,setTab]=useState<Tab>('inventory'),[me,setMe]=useState<R|null>(null),[types,setTypes]=useState<R[]>([]),[customers,setCustomers]=useState<R[]>([]);
+ const [tab,setTab]=useState<Tab>('orders'),[me,setMe]=useState<R|null>(null),[types,setTypes]=useState<R[]>([]),[customers,setCustomers]=useState<R[]>([]);
  const [units,setUnits]=useState<R[]>([]),[reviews,setReviews]=useState<R[]>([]),[zones,setZones]=useState<R[]>([]),[stats,setStats]=useState<R|null>(null),[reprints,setReprints]=useState<R[]>([]),[notice,setNotice]=useState(''),[error,setError]=useState('');
  const [q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]);
- const [customerSearch,setCustomerSearch]=useState(''),[newCustomer,setNewCustomer]=useState(''),[nearDuplicates,setNearDuplicates]=useState<R[]>([]);
- const [customerId,setCustomerId]=useState(browserEquipmentStore.getItem('equipment.customer')??'cus-stk22222'),[po,setPo]=useState(browserEquipmentStore.getItem('equipment.po')??'');
- const [requester,setRequester]=useState(''),[expected,setExpected]=useState(''),[vendor,setVendor]=useState('');
- const [lines,setLines]=useState<R[]>([{equipment_type_id:'',manufacturer:'',model:'',quantity:1}]);
- const [modelHints,setModelHints]=useState<Record<string,string[]>>({});
+ const [customerId,setCustomerId]=useState(browserEquipmentStore.getItem('equipment.customer')??'cus-stk22222'),[po,setPo]=useState('');
  const [unregisteredType,setUnregisteredType]=useState('');
  const [scan,setScan]=useState(new URLSearchParams(location.search).get('id')??''),[unit,setUnit]=useState<R|null>(null);
  const [serial,setSerial]=useState(''),[model,setModel]=useState(''),[locationNote,setLocationNote]=useState(''),[zoneId,setZoneId]=useState(''),[disposition,setDisposition]=useState('received'),[returnReason,setReturnReason]=useState(''),[returnDestination,setReturnDestination]=useState('warehouse');
@@ -92,10 +89,10 @@ function App(){
   try{
    const result=await mutate(attempt.kind,attempt.path,attempt.method,attempt.body,attempt);
    if(attempt.kind==='order'){
-    setLastBatch(result.batch_id);setSelected(result.unit_ids);setTab('labels');
+    setLastBatch(result.batch_id);setSelected(result.unit_ids);setTab('orders');
    }else if(attempt.kind==='customer'){
     setCustomerId(result.customer.customer_id);rememberEquipmentChoice('equipment.customer',result.customer.customer_id);
-    setNewCustomer('');await refresh();
+    await refresh();
    }else if(attempt.kind==='unregistered'){
     setUnit(result.unit);setScan(result.unit.equipment_id);setUnregisteredType('');setTab('receive');
    }else if(attempt.kind==='labels')setTab('labels');
@@ -153,53 +150,12 @@ function App(){
    const id=new URLSearchParams(window.location.search).get('id')??'';
    if(isEquipmentId(id.trim().toLowerCase()))findInitialUnit(id);
  },[]);
- useEffect(()=>{
-   const timer=setTimeout(()=>{req('/customers?q='+encodeURIComponent(customerSearch)).then(r=>setCustomers(r.items)).catch(()=>undefined);},200);
-   return ()=>clearTimeout(timer);
- },[customerSearch]);
- useEffect(()=>{
-   if(newCustomer.trim().length<3){setNearDuplicates([]);return;}
-   const timer=setTimeout(async()=>{
-     try{
-       const name=newCustomer.trim().toLowerCase();
-       const matches=(await req('/customers?q='+encodeURIComponent(name.slice(0,Math.min(4,name.length))))).items as R[];
-       setNearDuplicates(matches.filter(x=>text(x.display_name).toLowerCase().startsWith(name.slice(0,Math.min(4,name.length)))));}
-     catch{setNearDuplicates([]);}
-   },280);
-   return ()=>clearTimeout(timer);
- },[newCustomer]);
- const filteredCustomers=useMemo(()=>customers.filter(c=>text(c.display_name).toLowerCase().includes(customerSearch.toLowerCase())).slice(0,15),[customers,customerSearch]);
- function editLine(i:number,key:string,value:unknown){setLines(old=>old.map((line,j)=>i===j?{...line,[key]:value}:line));}
- async function loadModelHints(typeId:string){
-  if(!typeId||modelHints[typeId])return;
-  try{const result=await req('/equipment/models?type_id='+encodeURIComponent(typeId));
-    setModelHints(prev=>({...prev,[typeId]:result.items.map((m:R)=>text(m.model)).filter(Boolean)}));}
-  catch(e){report(e);}
- }
  async function updateDisposition(){
   if(!unit)return;
   try{
    const updated=await mutate('status','/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes:disposition==='returned'?{status:disposition,return_reason:returnReason,return_destination:returnDestination}:{status:disposition}});
    setUnit(updated.unit);setDisposition(text(updated.unit.status));success('Equipment status changed to '+disposition+'.');
    await loadInventory();
-  }catch(e){report(e);}
- }
- async function createCustomer(){
-  try{
-    const result=await mutate('customer','/customers','POST',{display_name:newCustomer.trim()});
-    await refresh();setCustomerId(result.customer.customer_id);rememberEquipmentChoice('equipment.customer',result.customer.customer_id);setNewCustomer('');
-    success(result.similar_customers.length?'Customer created. Similar existing customers: '+result.similar_customers.map((c:R)=>c.display_name).join(', '):'Customer added.');
-  }catch(e){report(e);}
- }
- async function order(){
-  const body={header:{customer_id:customerId,po_number:po,requested_by_name:requester||me?.name,expected_date:expected||null,vendor},
-   lines:lines.map(l=>({...l,quantity:Number(l.quantity)||1}))};
-  try{
-   const result=await mutate('order','/equipment/orders','POST',body);
-   rememberEquipmentChoice('equipment.po',po);rememberEquipmentChoice('equipment.customer',customerId);
-   setLastBatch(result.batch_id);setSelected(result.unit_ids);
-   success('Ordered '+result.unit_ids.length+' individual units. This submission has a permanent batch ID.');
-   setTab('labels');await loadInventory();
   }catch(e){report(e);}
  }
  async function findUnit(value:string){
@@ -237,15 +193,6 @@ function App(){
    success('Received '+result.affected+' remaining units; serial numbers can be captured later.');await openBatch(lastBatch);await loadInventory();
   }catch(e){report(e);}
  }
- async function cancelBatch(){
-  if(!lastBatch||!window.confirm('Cancel all units still ordered in this batch? Received units will not be cancelled.'))return;
-  try{
-   const result=await mutate('cancelBatch','/equipment/batches/'+lastBatch+'/cancel','POST',{});
-   setSelected([]);setPrintIds([]);setLastPdf(null);
-   success('Cancelled '+result.affected+' remaining ordered units. The audit history is preserved.');
-   await loadInventory();
-  }catch(e){report(e);}
- }
  async function prepare(){
   try{
    if(printIds.length&&lastPdf){
@@ -276,6 +223,7 @@ function App(){
   if(!unit)return;
   const changes={...correction};
   if(!can('receive_edit_equipment')){delete changes.serial_number;delete changes.confirmed_model;delete changes.zone_id;delete changes.location_note;}
+  if(unit.entry_batch_id)for(const key of ['customer_id','po_number','requested_by_name','expected_date','vendor','manufacturer','ordered_model'])delete changes[key];
   const original=unit as R;
   for(const key of Object.keys(changes))if(text(changes[key])===text(original[key]))delete changes[key];
   if(!Object.keys(changes).length){success('No changes to save.');return;}
@@ -309,7 +257,7 @@ function App(){
  </header>
  <main className="mx-auto max-w-5xl px-3 py-5">
  <nav className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5" aria-label="Equipment navigation">
- {([['inventory','Find equipment'],['orders','Order equipment'],['receive','Receive / scan'],['labels','Print labels'],['reviews','Needs attention'],...(can('admin')?[['customers','Customers']]:[]),...(can('manage_staff')?[['staff','Staff permissions']]:[])] as [Tab,string][]).map(([key,label])=>
+ {([['orders','Equipment Orders'],['inventory','Find equipment'],['receive','Receive / scan'],['labels','Print labels'],['reviews','Needs attention'],...(can('admin')?[['customers','Customers']]:[]),...(can('manage_staff')?[['staff','Staff permissions']]:[])] as [Tab,string][]).map(([key,label])=>
  <button key={key} type="button" onClick={()=>{setTab(key);setError('');}} className={tab===key?button:base}>{label}</button>)}
  </nav>
  {error&&<div role="alert" className="mb-4 p-3 border border-red-500 bg-red-50 text-red-900 rounded-lg">{error}</div>}
@@ -335,32 +283,13 @@ function App(){
   {inventoryOffset!==null&&<button className={base} onClick={()=>void loadInventory(q,inventoryOffset)}>Load more equipment</button>}
   <button className={button} disabled={!selected.length} onClick={()=>setTab('labels')}>Print {selected.length} selected labels</button>
  </section>}
- {tab==='orders'&&<section className="bg-white border rounded-xl p-4 space-y-4">
-  <h2 className="text-xl font-bold">Order equipment</h2><p>Enter the order header once. Every quantity becomes a separate tracked unit with its own QR code.</p>
-  <label className="block font-semibold">Customer <input value={customerSearch} onChange={e=>setCustomerSearch(e.target.value)} className={base} placeholder="Find customer"/></label>
-  <div className="max-h-40 overflow-y-auto border rounded-lg">
-   {filteredCustomers.map(c=><button type="button" key={c.customer_id} className={'block w-full text-left p-2 border-b '+(customerId===c.customer_id?'bg-yellow-100 font-bold':'')} onClick={()=>{setCustomerId(c.customer_id);rememberEquipmentChoice('equipment.customer',c.customer_id);}}>{c.display_name}{customerId===c.customer_id?' ✓':''}</button>)}
-  </div>
-  <div className="flex gap-2"><input className={base} placeholder="New customer name" value={newCustomer} onChange={e=>setNewCustomer(e.target.value)}/><button className={button} onClick={createCustomer} disabled={!newCustomer.trim()}>Add customer</button></div>
-  {nearDuplicates.length>0&&<p className="p-2 bg-yellow-50 border rounded-lg text-sm">Similar customers already exist: {nearDuplicates.map(c=>text(c.display_name)).join(', ')}. Check before creating another; you can still add this customer.</p>}
-  <div className="grid md:grid-cols-2 gap-3">
-   <label>PO # <input className={base} value={po} onChange={e=>setPo(e.target.value)} placeholder="Keep leading zeroes"/></label>
-   <label>Requested by <input className={base} value={requester} onChange={e=>setRequester(e.target.value)} placeholder="Name"/></label>
-   <label>Expected date <input className={base} type="date" value={expected} onChange={e=>setExpected(e.target.value)}/></label>
-   <label>Vendor <input className={base} value={vendor} onChange={e=>setVendor(e.target.value)}/></label>
-  </div>
-  <h3 className="font-bold">Equipment lines</h3>
-  {lines.map((line,i)=><div className="grid md:grid-cols-5 gap-2 p-3 border rounded-lg" key={i}>
-   <label>Type <select className={base} value={line.equipment_type_id} onChange={e=>editLine(i,'equipment_type_id',e.target.value)}><option value="">Choose…</option>{types.map(t=><option key={t.equipment_type_id} value={t.equipment_type_id}>{t.name} — {t.department}</option>)}</select></label>
-   <label>Manufacturer <input className={base} value={line.manufacturer} onChange={e=>editLine(i,'manufacturer',e.target.value)}/></label>
-   <label>Model <input className={base} list={'equipment-models-'+i} value={line.model} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>editLine(i,'model',e.target.value)}/><datalist id={'equipment-models-'+i}>{(modelHints[line.equipment_type_id]||[]).map(m=><option key={m} value={m}/>)}</datalist></label>
-   <label>Quantity <input className={base} type="number" min="1" max="25" value={line.quantity} onChange={e=>editLine(i,'quantity',Number(e.target.value))}/></label>
-   <button className="underline" disabled={lines.length===1} onClick={()=>setLines(s=>s.filter((_,j)=>j!==i))}>Remove line</button>
-  </div>)}
-  <div className="flex flex-wrap gap-2"><button className={base} style={{width:'auto'}} disabled={lines.length>=10} onClick={()=>setLines(s=>[...s,{equipment_type_id:'',manufacturer:'',model:'',quantity:1}])}>+ Add line</button>
-   <button className={button} disabled={!can('order_equipment')||busy||!!pendingMutation} onClick={order}>{busy?'Saving…':'Save'} {lines.reduce((n,l)=>n+(Number(l.quantity)||0),0)} equipment units</button></div>
-  {!can('order_equipment')&&<p role="note">Your administrator must grant <code>order_equipment</code> to place orders.</p>}
- </section>}
+ {tab==='orders'&&<EquipmentOrdersPanel
+   types={types} customers={customers} me={me} can={can}
+   request={req} mutate={mutate}
+   onReceive={batchId=>{void openBatch(batchId);}}
+   onPrint={ids=>{setSelected(ids.filter(Boolean));setLastPdf(null);setPrintIds([]);setTab('labels');}}
+   onCustomerAdded={refresh}
+  />}
  {tab==='receive'&&<section className="space-y-3">
   <h2 className="text-xl font-bold">Receive equipment</h2>
   <section className="bg-white border rounded-lg p-3 space-y-2" aria-label="Find saved orders">
@@ -387,7 +316,8 @@ function App(){
   <form onSubmit={e=>{e.preventDefault();void findUnit(scan);}} className="flex gap-2"><input autoFocus className={base} placeholder="Scan or enter eqp- ID" value={scan} onChange={e=>setScan(e.target.value)}/><button className={button}>Find QR</button></form>
   {unit?<article className="bg-white p-4 border rounded-lg space-y-3">
    <h3 className="font-bold text-xl">{unit.customer_name||'Equipment'} · {unit.type_name||unit.equipment_type_id}</h3>
-   <p>{unit.equipment_id} · {unit.status} · PO {unit.po_number||'—'}</p><p>Ordered model: {unit.ordered_model||'Not specified'}</p>
+   <p>{unit.equipment_id} · {unit.status} · PO {unit.po_number||'No PO'}</p><p>Ordered model: {unit.ordered_model||'Not specified'}</p>
+    {(unit.manufacturer_unknown||unit.model_unknown)&&<p role="note" className="rounded border border-amber-400 bg-amber-50 p-2 text-amber-900">Missing {unit.manufacturer_unknown?'manufacturer ':''}{unit.model_unknown?'model ':''}information. Correct the saved order before receiving.</p>}
    {unit.marker_x_in!=null&&unit.marker_y_in!=null&&<a className="font-semibold underline text-[#6B1A2C]" href={'/map/?equipment='+encodeURIComponent(unit.equipment_id)}>Find staged equipment on map</a>}
    {can('receive_edit_equipment')&&<a className="block underline text-[#6B1A2C]" href={'/map/'}>Place or move equipment on warehouse map</a>}
    <label className="block">Serial number <input className={base} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="Scan/type serial (may be blank)"/></label>
@@ -398,10 +328,11 @@ function App(){
    {(can('receive_edit_equipment')||(can('order_equipment')&&unit.entered_by_email===me?.email&&unit.status==='ordered'))&&
     <details className="border rounded p-3 space-y-2"><summary className="cursor-pointer font-bold">Correct equipment details</summary>
      <div className="space-y-2 py-2">
-      <label className="block">Customer<select className={base} value={text(correction.customer_id)} onChange={e=>setCorrection(p=>({...p,customer_id:e.target.value}))}>
+      {unit.entry_batch_id&&<p className="text-sm rounded bg-amber-50 p-2">Shared manufacturer, model, customer, PO and order information must be corrected in Equipment Orders.</p>}
+      {!unit.entry_batch_id&&<><label className="block">Customer<select className={base} value={text(correction.customer_id)} onChange={e=>setCorrection(p=>({...p,customer_id:e.target.value}))}>
        {customers.map(c=><option key={c.customer_id} value={c.customer_id}>{c.display_name}</option>)}</select></label>
       {([['po_number','PO number'],['manufacturer','Manufacturer'],['ordered_model','Ordered model'],['expected_date','Expected date (YYYY-MM-DD)'],['vendor','Vendor'],['notes','Notes']] as [string,string][]).map(([key,label])=>
-       <label className="block" key={key}>{label}<input className={base} value={text(correction[key])} onChange={e=>setCorrection(p=>({...p,[key]:e.target.value}))}/></label>)}
+       <label className="block" key={key}>{label}<input className={base} value={text(correction[key])} onChange={e=>setCorrection(p=>({...p,[key]:e.target.value}))}/></label>)}</>}
       {can('receive_edit_equipment')&&<>
        {([['serial_number','Correct serial'],['confirmed_model','Correct confirmed model'],['location_note','Correct location notes']] as [string,string][]).map(([key,label])=>
         <label className="block" key={key}>{label}<input className={base} value={text(correction[key])} onChange={e=>setCorrection(p=>({...p,[key]:e.target.value}))}/></label>)}
@@ -441,7 +372,7 @@ function App(){
   <h2 className="text-xl font-bold">Avery 5821 equipment labels</h2>
   <p>US Letter · 2 columns × 4 rows · 4 × 2.5 inches per label. QR contains only its equipment ID. Print up to 25 units per job.</p>
   <p>{selected.length} unit(s) selected{lastBatch?' · Last order batch '+lastBatch:''}</p>
-  {lastBatch&&<button className="underline text-[#6B1A2C]" onClick={cancelBatch}>Cancel remaining ordered units from last batch</button>}
+
   <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{setSkip(Number(e.target.value));setLastPdf(null);setPrintIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
   <div className="flex gap-2 flex-wrap">
    <button className={button} onClick={prepare} disabled={busy||(!selected.length&&!unit&&!lastBatch)||selected.length>25}>{printIds.length&&lastPdf?'Re-download same equipment PDF':'Generate / download equipment PDF'}</button>

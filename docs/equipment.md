@@ -1,4 +1,4 @@
-# Equipment tracking — Phase 2 implementation
+# Equipment tracking — equipment ordering and receiving
 
 **Feature branch:** `feature/equipment-tracking` · **Draft PR:** https://github.com/jaycesuncity-code/Warehouse/pull/2
 
@@ -21,7 +21,7 @@ Approved architecture: [Equipment Integration Proposal](equipment-proposal.md) (
 - Receiving without a prior order saves the unit and raises an unregistered-arrival review item.
 - Equipment status and location are independent from part `stock`. Warehouse physical zone validation must not invent a bin.
 - The UI downloads a PDF locally; only the explicit **Confirm physically printed** action records physical print confirmation. Print at Actual Size/100% and measure the calibration PDF before using actual Avery stock.
-- The implementation includes customer merge API, a staff permission-management screen, model suggestions, inventory KPI counts and a reprint-needed query. The separate Equipment route relies on the existing warehouse camera scanner for QR capture, rather than duplicating a camera view. Precise 3D equipment staging markers and a dedicated customer-merge UI remain future work. These gaps and complete real-device QA should be reviewed before a production release.
+- The implementation includes customer merge API, a staff permission-management screen, model suggestions, inventory KPI counts and a reprint-needed query. The separate Equipment route relies on the existing warehouse camera scanner for QR capture, rather than duplicating a camera view. Interactive 3D equipment staging markers and customer-merge UI are implemented in the existing feature branch. These gaps and complete real-device QA should be reviewed before a production release.
 - No remote database access, physical printing, or authenticated production browser test has been performed by this implementation.
 - **Do not merge PR #2** until its CI is green and the missing production-critical tasks above are completed.
 
@@ -114,3 +114,23 @@ The optional equipment marker is stored as an X/Y position in map inches, using 
 Migration `0007_equipment_map_positions.sql` adds nullable marker coordinates and an index to `equipment`; previous equipment records remain valid without markers. This must be applied **after 0006** on isolated copies first. The system's `/api/health` now requires both 0006 and 0007 for complete readiness.
 
 Physical layout still carries existing unverified room outlines; marker placement means the employee selected a location, not that building geometry or aisle safety was professionally surveyed. The map and physical marker workflow require on-site visual verification before production authorization.
+
+
+## Equipment Orders — feature branch implementation (2026-11-04)
+
+This section documents the new order-management code on the draft feature branch. It does **not** establish production readiness.
+
+- The **Equipment Orders** section defaults to outstanding batches (at least one unit in `ordered` status), with partial, closed, and all-order filters and paginated search by PO, batch ID, customer, requester, vendor, manufacturer, and model. Search moves to All so historical orders are not concealed.
+- New orders require a customer/STOCK and 1–10 lines / 1–25 units. PO is optional and retains leading zeroes. Manufacturer and model normally must be entered; each can independently be marked Unknown. The review-before-submit step is read-only. Successful saving shows the batch ID, counts, and separate label, detail, and new-order actions.
+- Labels may be printed after ordering, during receiving, or reprinted. Existing Avery 5821 PDF geometry, QR payload, and separate print confirmation remain unchanged. Cancelled equipment is blocked from new label preparation.
+- Each order details page groups by **actual entry_line_id**, displays status/quantity totals and individual Equipment IDs, prints/receiving actions, and recent event history.
+- Order editing uses `PATCH /api/equipment/batches/:id` with required batch `version`, `header`, and edited/new `lines`. Existing unit IDs are preserved; increases mint only additional units. `ordered_qty` is historical cumulative creation count and **does not decrease** on cancellation. Current active equals all non-cancelled unit records; current outstanding equals units with status `ordered`. Received counts use non-null `received_at`, including equipment later moved to other statuses.
+- Reductions specify the exact outstanding `cancel_unit_ids` and a mandatory cancellation reason. A standalone `POST /api/equipment/batches/:id/cancel` accepts selected `unit_ids` or cancels all remaining units; `POST /api/equipment/:id/cancel` handles one unit. Accepted predefined reasons are Customer cancelled, Ordered by mistake, Supplier unavailable, Equipment changed, Duplicate order, and Other with a required explanation. Reasons are stored on each cancelled unit and in event history.
+- Any staff member with `order_equipment` can cancel outstanding units of any order; `receive_edit_equipment` alone cannot. Shared batch/line changes that affect already received equipment require `receive_edit_equipment` or administrator authority. Shared order fields cannot be changed through the individual-unit correction endpoint.
+- Unknown fields have dedicated flags and open missing-information review records per unit. Fixing those fields through order editing resolves applicable open review records. Receiving displays a prompt for outstanding unknown fields.
+- Revision-aware, single D1-batch mutations and existing idempotency receipts protect retries. `0008_equipment_order_management.sql` is **additive**, must be tested in an isolated D1 database, and is **not authorized for production application** as part of this branch work.
+- The existing equipment types API and staff permissions remain intact. Physical printer calibration and authenticated production workflow checks still require separate verification.
+
+### Important readiness caveats
+
+This is a draft development feature. CI, isolated populated-migration tests, an authenticated staging walkthrough, and physical printer alignment must all be verified before production release. Do not connect write-capable testing to the existing feature preview if that preview points at production D1.

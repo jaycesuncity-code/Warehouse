@@ -3,6 +3,7 @@ import type { Me } from '../../src/shared/contract';
 import { mintId } from '../../src/shared/mock/mint';
 import { readBoundedText } from './http';
 import { readIdempotency } from './database';
+import { equipmentOrdersRoute } from './equipment-orders';
 
 type Row = Record<string, unknown>;
 type P = 'order_equipment' | 'receive_edit_equipment' | 'print_labels' | 'manage_equipment_types' | 'manage_staff';
@@ -100,6 +101,8 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       await commit(db, statements, receipt ? { ...receipt, body: result, status } : undefined);
       return reply(result, status);
     };
+    const managed = await equipmentOrdersRoute({db,me,rights,path,method,url,body,save});
+    if (managed) return managed;
     if (path === '/api/equipment/types' && method === 'GET')
       return reply({ items: await list(db, 'SELECT * FROM equipment_types WHERE active=1 ORDER BY department,name') });
     if (path === '/api/equipment/types' && method === 'POST') {
@@ -274,6 +277,8 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       if (!lines.length||lines.length>10) return fail(400,'validation','Include 1 to 10 equipment lines per order.');
       const total=lines.reduce((n,l)=>n+number(l.quantity??1),0);
       if(total<1||total>25||lines.some(l=>number(l.quantity??1)<1)) return fail(400,'validation','Order contains at most 25 individual units.');
+      if(lines.some(l=>!(str(l.manufacturer,150)||l.manufacturer_unknown===true)||!(str(l.model,200)||l.model_unknown===true)))
+        return fail(400,'validation','Manufacturer and model are required unless independently marked Unknown.');
       const typeRows=await list(db,'SELECT equipment_type_id FROM equipment_types WHERE active=1');
       const known=new Set(typeRows.map(x=>x.equipment_type_id));
       if(lines.some(l=>!known.has(str(l.equipment_type_id)))) return fail(400,'validation','Choose a valid active equipment type.');
@@ -288,14 +293,19 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
         const line=lines[i],lineId=id('ebl'),quantity=number(line.quantity??1);
         const manufacturer=str(line.manufacturer,150),model=str(line.model,200),vendor=str(line.vendor,150)||batch.vendor;
         statements.push(insert(db,'equipment_batch_lines',{entry_line_id:lineId,entry_batch_id:batchId,line_no:i+1,
-          equipment_type_id:line.equipment_type_id,manufacturer,model,vendor,ordered_qty:quantity}));
+          equipment_type_id:line.equipment_type_id,manufacturer,model,vendor,ordered_qty:quantity,
+          manufacturer_unknown:!manufacturer&&line.manufacturer_unknown===true?1:0,
+          model_unknown:!model&&line.model_unknown===true?1:0}));
         for(let j=1;j<=quantity;j++){
           const equipmentId=id('eqp');unitIds.push(equipmentId);
           statements.push(insert(db,'equipment',{equipment_id:equipmentId,entry_batch_id:batchId,entry_line_id:lineId,
            unit_index:j,source:'ordered',equipment_type_id:line.equipment_type_id,customer_id:customerId,po_number:po,
            po_normalized:poNormalized,requested_by_name:batch.requested_by_name,requested_by_email:batch.requested_by_email,
            expected_date:batch.expected_date,vendor,notes:batch.notes,manufacturer,manufacturer_normalized:normalized(manufacturer),
-           ordered_model:model,status:'ordered',entered_by_email:me.email,created_at:timestamp,updated_at:timestamp,updated_by_email:me.email}));
+           ordered_model:model,manufacturer_unknown:!manufacturer&&line.manufacturer_unknown===true?1:0,
+           model_unknown:!model&&line.model_unknown===true?1:0,status:'ordered',entered_by_email:me.email,created_at:timestamp,updated_at:timestamp,updated_by_email:me.email}));
+          if(!manufacturer&&line.manufacturer_unknown===true)statements.push(review(db,me,equipmentId,'MISSING_MANUFACTURER',{}));
+          if(!model&&line.model_unknown===true)statements.push(review(db,me,equipmentId,'MISSING_MODEL',{}));
         }
       }
       statements.push(event(db,me,'create','equipment_batch',batchId,{}, {batch_id:batchId,unit_ids:unitIds}));
@@ -337,6 +347,11 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       const receiver=allowed(me,rights,'receive_edit_equipment'),owner=allowed(me,rights,'order_equipment')&&prior.entered_by_email===me.email&&prior.status==='ordered';
       if(action==='receive'?!receiver:!(receiver||owner))return fail(403,'forbidden','Equipment edit permission required.');
       if(body.version!==prior.version)return fail(409,'version_conflict','Equipment changed. Review and retry.',{current:prior});
+      if(action==='edit'&&prior.entry_batch_id){
+        const shared=['customer_id','po_number','requested_by_name','expected_date','vendor','manufacturer','ordered_model'];
+        if(shared.some(k=>asObj(body.changes)[k]!==undefined))
+          return fail(400,'validation','Edit shared order details from Equipment Orders to keep the batch and units consistent.');
+      }
       if(action==='receive'&&prior.status!=='ordered')return fail(409,'status_conflict','Only ordered units can be received.');
       if(action==='cancel'&&prior.status!=='ordered')return fail(409,'status_conflict','Only ordered units can be cancelled here.');
       const changes=action==='edit'?asObj(body.changes):body;
@@ -455,6 +470,7 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
       if(found.length!==ids.length)return fail(404,'not_found','Some equipment IDs do not exist.');
       if(found.some(r=>!allowed(me,rights,'print_labels')&&!allowed(me,rights,'receive_edit_equipment')&&!(allowed(me,rights,'order_equipment')&&r.entered_by_email===me.email)))
         return fail(403,'forbidden','Print permission required.');
+      if(found.some(u=>u.status==='cancelled'))return fail(409,'status_conflict','Cancelled equipment labels cannot be prepared as active equipment.');
       const sorted=found.sort((a,b)=>Number(b.is_stock)-Number(a.is_stock)||String(a.customer_name).localeCompare(String(b.customer_name))||String(a.po_number).localeCompare(String(b.po_number))||Number(a.unit_index)-Number(b.unit_index));
       const runId=crypto.randomUUID(),statements:ReturnType<D1['prepare']>[]=[],labels:Row[]=[];
       sorted.forEach((unit,i)=>{
