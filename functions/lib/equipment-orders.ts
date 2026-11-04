@@ -42,6 +42,9 @@ function clearReview(db:D1,actor:Me,unitId:string,issue:string):Statement {
  return stmt(db,"UPDATE warehouse_review_items SET state='resolved',resolved_at=?,resolved_by=?,version=version+1 WHERE entity_type='equipment' AND entity_id=? AND issue_code=? AND state='open'",
   timestamp(),actor.email,unitId,issue);
 }
+function clearMissingReviews(db:D1,actor:Me,ids:string[]):Statement {
+ return stmt(db,"UPDATE warehouse_review_items SET state='resolved',resolved_at=?,resolved_by=?,version=version+1 WHERE entity_type='equipment' AND issue_code IN ('MISSING_MANUFACTURER','MISSING_MODEL') AND state='open' AND entity_id IN (SELECT value FROM json_each(?))",timestamp(),actor.email,JSON.stringify(ids));
+}
 const reasons=new Set(['Customer cancelled','Ordered by mistake','Supplier unavailable','Equipment changed','Duplicate order']);
 function cancellationReason(body:Row):string {
  const value=text(body.reason,500);
@@ -163,9 +166,9 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
     status:'cancelled',cancel_reason:reason,cancelled_at:at,cancelled_by_email:me.email,updated_at:at,updated_by_email:me.email
    },'equipment_id',String(unit.equipment_id),Number(unit.version)));
    statements.push(audit(db,me,'cancel','equipment',String(unit.equipment_id),unit,after));
-   statements.push(clearReview(db,me,String(unit.equipment_id),'MISSING_MANUFACTURER'));
-   statements.push(clearReview(db,me,String(unit.equipment_id),'MISSING_MODEL'));
+
   }
+  statements.push(clearMissingReviews(db,me,ids));
   const remaining=existing.filter(u=>u.status==='ordered'&&!ids.includes(String(u.equipment_id))).length;
   statements.push(updateStatement(db,'equipment_entry_batches',{
    cancelled_at:remaining===0?at:batch.cancelled_at,cancelled_by:remaining===0?me.email:batch.cancelled_by
@@ -305,9 +308,9 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
     status:'cancelled',cancel_reason:cancelReason,cancelled_at:at,cancelled_by_email:me.email,updated_at:at,updated_by_email:me.email
    },'equipment_id',equipmentId,Number(unit.version)));
    statements.push(audit(db,me,'cancel','equipment',equipmentId,unit,{...unit,status:'cancelled',cancel_reason:cancelReason}));
-   statements.push(clearReview(db,me,equipmentId,'MISSING_MANUFACTURER'));
-   statements.push(clearReview(db,me,equipmentId,'MISSING_MODEL'));
+
   }
+  if(cancelIds.length)statements.push(clearMissingReviews(db,me,cancelIds));
   if(header.vendor!==undefined&&header.vendor!==batch.vendor)
    statements.push(stmt(db,'UPDATE equipment_batch_lines SET vendor=? WHERE entry_batch_id=?',header.vendor,batchMatch[1]));
   if(headChanges)for(const unit of units.filter(u=>u.status!=='cancelled'&&!cancelIds.includes(String(u.equipment_id)))) {

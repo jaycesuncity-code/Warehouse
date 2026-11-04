@@ -287,8 +287,8 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     await page.getByRole('button', { name: '+ New Order' }).click();
     await page.getByPlaceholder('No PO').fill('0007732');
     await page.getByRole('combobox', { name: 'Equipment type' }).selectOption('ety-22222222');
-    await page.getByRole('textbox', { name: 'Manufacturer' }).fill('Carrier');
-    await page.getByRole('textbox', { name: 'Model' }).fill('ABC-123');
+    await page.getByRole('combobox', { name: 'Manufacturer', exact: true }).fill('Carrier');
+    await page.getByRole('combobox', { name: 'Model', exact: true }).fill('ABC-123');
     await page.getByRole('button', { name: 'Review Order' }).click();
     await page.getByRole('button', { name: 'Submit Order' }).click();
     await expect(page.getByRole('heading', { name: 'Equipment Order Saved' })).toBeVisible();
