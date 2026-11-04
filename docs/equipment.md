@@ -134,3 +134,16 @@ This section documents the new order-management code on the draft feature branch
 ### Important readiness caveats
 
 This is a draft development feature. CI, isolated populated-migration tests, an authenticated staging walkthrough, and physical printer alignment must all be verified before production release. Do not connect write-capable testing to the existing feature preview if that preview points at production D1.
+
+## Post-review corrections (2026-11-04)
+
+- Equipment order Manufacturer and Model inputs have independent accessible names; their separate Unknown checkboxes no longer append text to input labels.
+- Fully cancelled lines remain read-only historical groups with zero active units, and no longer block unrelated header or active-line changes.
+- Health/readiness now requires all new `0008` equipment fields **and** its three supporting indexes. The old pre-`0008` schema must not be reported as ready.
+- Cancel operations resolve only selected units' open MISSING_MANUFACTURER and MISSING_MODEL review records, preserving their audit history and all other review issues.
+- Order notes can be entered, reviewed, corrected, and displayed in order details.
+- Version conflicts use structured API error codes and warn before discarding unsaved form fields.
+- Recovery of an uncertain saved order reopens the original batch and refreshes the list instead of leaving the operator on a stale submission form.
+- An isolated populated-equipment migration regression test now covers received and cancelled units, equipment lines, labels, review items, events, foreign keys, and unrelated warehouse tables.
+
+These updates are code changes on the feature branch; do not interpret them as proof of a passed verification suite or production migration authorization.

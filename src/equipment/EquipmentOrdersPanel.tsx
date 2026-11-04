@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
+import { EquipmentApiError } from './recoverable';
 
 type RecordRow = Record<string, any>; // Matches the existing equipment API's flexible response shape.
 type Line = {entry_line_id?:string;equipment_type_id:string;manufacturer:string;model:string;quantity:number;manufacturer_unknown:boolean;model_unknown:boolean};
@@ -7,6 +8,8 @@ type Headers = {customer_id:string;po_number:string;vendor:string;requested_by_n
 type Props = {
  types:RecordRow[]; customers:RecordRow[]; me:RecordRow|null; can:(permission:string)=>boolean;
  request:(path:string,method?:string,body?:RecordRow)=>Promise<RecordRow>;
+ refreshVersion?:number;
+ recoveredOrder?:{batchId:string;sequence:number}|null;
  mutate:(kind:string,path:string,method:'POST'|'PATCH',body:RecordRow)=>Promise<RecordRow>;
  onReceive:(batchId:string)=>void; onPrint:(ids:string[])=>void; onCustomerAdded:()=>Promise<void>;
 };
@@ -20,7 +23,7 @@ const count=(items:Line[])=>items.reduce((sum,x)=>sum+Number(x.quantity||0),0);
 const required=(line:Line)=>line.equipment_type_id&&(line.manufacturer.trim()||line.manufacturer_unknown)&&(line.model.trim()||line.model_unknown);
 const displayDate=(value:unknown)=>value?String(value).slice(0,10):'Not set';
 const parseJSON=(value:unknown)=>{try{return typeof value==='string'?JSON.parse(value):value;}catch{return value;}};
-export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onReceive,onPrint,onCustomerAdded}:Props) {
+export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onReceive,onPrint,onCustomerAdded,refreshVersion=0,recoveredOrder=null}:Props) {
  const stock=customers.find(c=>c.is_stock)?.customer_id||'cus-stk22222';
  const [view,setView]=useState<'list'|'new'|'review'|'saved'|'details'|'edit'>('list');
  const [orders,setOrders]=useState<RecordRow[]>([]);
@@ -64,6 +67,8 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
   }catch(e){setError(String(e));}
  }
  useEffect(()=>{void listOrders('', 'outstanding',0);},[]);
+ useEffect(()=>{if(refreshVersion>0)void listOrders(search,filter,0);},[refreshVersion]);
+ useEffect(()=>{if(recoveredOrder)void openOrder(recoveredOrder.batchId);},[recoveredOrder?.sequence]);
  useEffect(()=>{
   if(!customerQuery.trim()){setCustomerMatches([]);return;}
   let active=true;
@@ -82,8 +87,9 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
   setView('new');setError('');setNotice('');
  }
  const updateLine=(i:number,update:Partial<Line>)=>setLines(current=>current.map((item,j)=>i===j?{...item,...update}:item));
- const valid=header.customer_id&&lines.length>0&&lines.length<=10&&count(lines)>0&&count(lines)<=25&&
-  lines.every(l=>required(l)&&Number.isInteger(Number(l.quantity))&&Number(l.quantity)>0&&Number(l.quantity)<=25);
+ const valid=header.customer_id&&lines.length>0&&lines.length<=10&&(view==='edit'||count(lines)>0)&&count(lines)<=25&&
+  lines.every(l=>(view==='edit'&&l.entry_line_id&&selected?.lines?.some((x:RecordRow)=>x.entry_line_id===l.entry_line_id&&Number(x.active)===0)&&l.quantity===0)
+   ||(required(l)&&Number.isInteger(Number(l.quantity))&&Number(l.quantity)>0&&Number(l.quantity)<=25));
  function validate(){
   if(!valid){setError('Select a customer and equipment type, enter manufacturer/model or mark each missing field Unknown, and keep quantities within 25 units.');return false;}
   setError('');return true;
@@ -151,7 +157,11 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
     lines:lineChanges,cancel_unit_ids:cancelIds,reason,explanation:reasonOther
    });
    setNotice('Order changes saved and audited.');await openOrder(selectedId);await listOrders(search,filter,0);
-  }catch(e){setError(String(e));setStale(String(e).includes('409'));}finally{setBusy(false);}
+  }catch(e){
+   const conflict=e instanceof EquipmentApiError&&e.status===409&&e.code==='version_conflict';
+   setStale(conflict);
+   setError(conflict?'Another employee changed this order. Your unsaved fields are still visible; review or copy them before loading the latest version.':String(e));
+  }finally{setBusy(false);}
  }
  async function cancelOrder(){
   if(!selected)return;
@@ -164,7 +174,11 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
    setBusy(true);
    await mutate('cancelBatch','/equipment/batches/'+selectedId+'/cancel','POST',{version:selected.batch.version,unit_ids:chosen.map(u=>u.equipment_id),reason,explanation:reasonOther});
    setNotice('Cancelled '+chosen.length+' unit(s).');await openOrder(selectedId);await listOrders(search,filter,0);
-  }catch(e){setError(String(e));}finally{setBusy(false);}
+  }catch(e){
+   const conflict=e instanceof EquipmentApiError&&e.status===409&&e.code==='version_conflict';
+   setStale(conflict);
+   setError(conflict?'Order changed while you were cancelling it. Reload the saved order before attempting another cancellation.':String(e));
+  }finally{setBusy(false);}
  }
  const matchingCustomers=customerQuery.trim()?customerMatches:customers;
  const headerFields= <div className="space-y-3">
@@ -181,9 +195,14 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
    <label>Requested by<input className={input} value={header.requested_by_name} onChange={e=>updateHeader('requested_by_name',e.target.value)}/></label>
    <label>Expected arrival<input type="date" className={input} value={header.expected_date} onChange={e=>updateHeader('expected_date',e.target.value)}/></label>
   </div>
+  <label className="block">Order notes<textarea className={input} rows={3} value={header.notes} onChange={e=>updateHeader('notes',e.target.value)} placeholder="Optional order details"/></label>
  </div>;
  const lineFields=<div className="space-y-3">
-  {lines.map((line,i)=><div key={line.entry_line_id||i} className="rounded-lg border p-3 space-y-2">
+  {lines.map((line,i)=>{
+   const historical=view==='edit'&&line.entry_line_id&&selected?.lines?.some((x:RecordRow)=>x.entry_line_id===line.entry_line_id&&Number(x.active)===0);
+   return historical?<div key={line.entry_line_id} className="rounded-lg border bg-gray-50 p-3 text-sm">
+    <b>Equipment line {i+1} — fully cancelled (history only)</b><p>{types.find(t=>t.equipment_type_id===line.equipment_type_id)?.name} · {line.manufacturer||'Manufacturer unknown'} · {line.model||'Model unknown'}</p><p>Active quantity: 0. Previous Equipment IDs remain in order history.</p>
+   </div>:<div key={line.entry_line_id||i} className="rounded-lg border p-3 space-y-2">
    <div className="flex justify-between"><b>Equipment line {i+1}</b>
     {!line.entry_line_id&&lines.length>1&&<button className="underline" onClick={()=>setLines(s=>s.filter((_,j)=>j!==i))}>Remove new line</button>}
    </div>
@@ -192,16 +211,16 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
       <option value="">Choose type</option>{types.map(t=><option key={t.equipment_type_id} value={t.equipment_type_id}>{t.name} — {t.department}</option>)}
      </select></label>
     <label>Quantity<input type="number" min={1} max={25} className={input} value={line.quantity} onChange={e=>updateLine(i,{quantity:Number(e.target.value)})}/></label>
-    <label>Manufacturer<input className={input} list={'equipment-order-manufacturer-hints-'+i} value={line.manufacturer} disabled={line.manufacturer_unknown} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>updateLine(i,{manufacturer:e.target.value})}/>
+    <div><label className="block" htmlFor={'equipment-manufacturer-'+i}>Manufacturer</label><input id={'equipment-manufacturer-'+i} aria-label="Manufacturer" className={input} list={'equipment-order-manufacturer-hints-'+i} value={line.manufacturer} disabled={line.manufacturer_unknown} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>updateLine(i,{manufacturer:e.target.value})}/>
      <datalist id={'equipment-order-manufacturer-hints-'+i}>{[...new Set((modelHints[line.equipment_type_id]||[]).map(m=>String(m.manufacturer||'')).filter(Boolean))].map(m=><option key={m} value={m}/>)}</datalist>
-     <span className="flex gap-2 items-center text-sm"><input type="checkbox" checked={line.manufacturer_unknown} onChange={e=>updateLine(i,{manufacturer_unknown:e.target.checked,manufacturer:e.target.checked?'':line.manufacturer})}/> Unknown manufacturer</span>
-    </label>
-    <label>Model<input className={input} list={'equipment-order-model-hints-'+i} value={line.model} disabled={line.model_unknown} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>updateLine(i,{model:e.target.value})}/>
+     <label className="flex gap-2 items-center text-sm"><input type="checkbox" aria-label="Unknown manufacturer" checked={line.manufacturer_unknown} onChange={e=>updateLine(i,{manufacturer_unknown:e.target.checked,manufacturer:e.target.checked?'':line.manufacturer})}/> Unknown manufacturer</label>
+    </div>
+    <div><label className="block" htmlFor={'equipment-model-'+i}>Model</label><input id={'equipment-model-'+i} aria-label="Model" className={input} list={'equipment-order-model-hints-'+i} value={line.model} disabled={line.model_unknown} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>updateLine(i,{model:e.target.value})}/>
      <datalist id={'equipment-order-model-hints-'+i}>{(modelHints[line.equipment_type_id]||[]).map((m,j)=><option key={j} value={m.model}>{m.manufacturer}</option>)}</datalist>
-     <span className="flex gap-2 items-center text-sm"><input type="checkbox" checked={line.model_unknown} onChange={e=>updateLine(i,{model_unknown:e.target.checked,model:e.target.checked?'':line.model})}/> Unknown model</span>
-    </label>
+     <label className="flex gap-2 items-center text-sm"><input type="checkbox" aria-label="Unknown model" checked={line.model_unknown} onChange={e=>updateLine(i,{model_unknown:e.target.checked,model:e.target.checked?'':line.model})}/> Unknown model</label>
+    </div>
    </div>
-  </div>)}
+  </div>})}
   <div className="flex gap-2 flex-wrap">
    <button className={secondary} disabled={lines.length>=10} onClick={()=>setLines(s=>[...s,blankLine()])}>+ Add equipment line</button>
    <span className="py-2 text-sm font-bold">{count(lines)} units</span>
@@ -255,7 +274,7 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
       onChange={e=>setCancelIds(x=>e.target.checked?[...x,u.equipment_id]:x.filter(id=>id!==u.equipment_id))}/>
       {u.equipment_id} · outstanding</label>)}</details>)}
     {reasonForm}<button className={primary} disabled={!valid||busy} onClick={()=>void editOrder()}>Save Changes</button>
-    {stale&&<button className={secondary} onClick={()=>void openOrder(selectedId,'edit')}>Reload latest order</button>}
+    {stale&&<button className={secondary} onClick={()=>{if(window.confirm('Reload the latest order? This replaces your unsaved edits.'))void openOrder(selectedId,'edit');}}>Reload latest order</button>}
    </div>}
   </div>}
   {view==='review'&&<div className="rounded-xl border bg-white p-4 space-y-3">
@@ -263,6 +282,7 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
    <p><b>Customer:</b> {customers.find(c=>c.customer_id===header.customer_id)?.display_name||header.customer_id}</p>
    <p><b>PO:</b> {header.po_number||'No PO'} · <b>Vendor:</b> {header.vendor||'Not entered'}</p>
    <p><b>Requested by:</b> {header.requested_by_name||me?.name} · <b>Expected:</b> {displayDate(header.expected_date)}</p>
+   <p><b>Notes:</b> {header.notes||'None'}</p>
    {lines.map((l,i)=><p className="border-b py-2" key={i}>{types.find(t=>t.equipment_type_id===l.equipment_type_id)?.name} · {l.manufacturer||'Manufacturer unknown'} · {l.model||'Model unknown'} · {l.quantity} unit(s)
     {(l.manufacturer_unknown||l.model_unknown)&&<span className="block text-sm text-amber-800">Missing information will be flagged for follow-up.</span>}</p>)}
    <b>Total: {count(lines)} individual equipment IDs</b>
@@ -283,7 +303,8 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
    <button className={secondary} onClick={()=>setView('list')}>Back to Orders</button>
    <div className="flex flex-wrap justify-between gap-2"><div><h3 className="text-xl font-bold">{selected.batch.customer_name} · {selected.batch.po_number||'No PO'}</h3>
     <p className="text-sm">{selectedId} · {selected.status} · Created {displayDate(selected.batch.created_at)} by {selected.batch.entered_by_email}</p>
-    <p className="text-sm">Vendor {selected.batch.vendor||'—'} · Requested by {selected.batch.requested_by_name||'—'} · Expected {displayDate(selected.batch.expected_date)}</p></div>
+    <p className="text-sm">Vendor {selected.batch.vendor||'—'} · Requested by {selected.batch.requested_by_name||'—'} · Expected {displayDate(selected.batch.expected_date)}</p>
+    <p className="text-sm">Notes: {selected.batch.notes||'None'}</p></div>
     {can('order_equipment')&&<button className={primary} onClick={()=>void openOrder(selectedId,'edit')}>Edit Order</button>}</div>
    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[['Total records',selected.total],['Outstanding',selected.remaining],['Received',selected.received],['Cancelled',selected.cancelled]].map(([name,val])=>
     <div key={String(name)} className="border rounded p-2"><b className="block text-xl">{val}</b><span className="text-sm">{name}</span></div>)}</div>

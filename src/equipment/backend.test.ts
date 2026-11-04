@@ -232,3 +232,66 @@ describe('equipment order management',()=>{
   expect((await call('/equipment/labels/prepare','POST',{equipment_ids:[id],skip_first_positions:0})).status).toBe(409);
  });
 });
+
+
+describe('order correction regression cases',()=>{
+ const orderLine=(model:string,quantity=2)=>({equipment_type_id:furnace,manufacturer:'Carrier',model,quantity});
+ it('allows editing another active line when a historical line is fully cancelled',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,notes:'Initial notes'},
+   lines:[orderLine('FURNACE'),orderLine('CONDENSER',3)]});
+  expect(created.status).toBe(201);
+  const batchId=created.body.batch_id as string;
+  const before=await call('/equipment/batches/'+batchId);
+  const originalLines=before.body.lines as {entry_line_id:string,units:{equipment_id:string}[]}[];
+  const cancelledIds=originalLines[0].units.map(u=>u.equipment_id);
+  const cancelled=await call('/equipment/batches/'+batchId+'/cancel','POST',{
+   version:1,reason:'Equipment changed',unit_ids:cancelledIds
+  });
+  expect(cancelled.status).toBe(200);
+  const change=await call('/equipment/batches/'+batchId,'PATCH',{
+   version:2,header:{notes:'Revised notes',po_number:'000017'},
+   lines:[
+    {entry_line_id:originalLines[0].entry_line_id,...orderLine('FURNACE',0)},
+    {entry_line_id:originalLines[1].entry_line_id,...orderLine('CONDENSER',3)}
+   ]
+  });
+  expect(change.status).toBe(200);
+  const after=await call('/equipment/batches/'+batchId);
+  expect((after.body.batch as {notes:string,po_number:string}).notes).toBe('Revised notes');
+  expect((after.body.batch as {po_number:string}).po_number).toBe('000017');
+  expect((after.body.lines as {active:number}[])[0].active).toBe(0);
+  expect(db.sqlite.prepare("SELECT count(*) AS n FROM equipment WHERE entry_line_id=? AND status='cancelled'").get(originalLines[0].entry_line_id)).toEqual({n:2});
+  expect((after.body.units as unknown[]).length).toBe(5);
+ });
+ it('closes only missing-information reviews for cancelled units and preserves their history',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},
+   lines:[{equipment_type_id:furnace,manufacturer_unknown:true,model_unknown:true,quantity:2}]});
+  expect(created.status).toBe(201);
+  const [firstId,secondId]=created.body.unit_ids as string[];
+  const addReview=await call('/equipment/'+firstId+'/receive','POST',{version:1,confirmed_model:'M'});
+  expect(addReview.status).toBe(200);
+  const cancel=await call('/equipment/'+secondId+'/cancel','POST',{version:1,reason:'Supplier unavailable'});
+  expect(cancel.status).toBe(200);
+  const rows=db.sqlite.prepare("SELECT entity_id,issue_code,state FROM warehouse_review_items WHERE issue_code IN ('MISSING_MANUFACTURER','MISSING_MODEL') ORDER BY entity_id,issue_code").all() as {entity_id:string,issue_code:string,state:string}[];
+  expect(rows.filter(x=>x.entity_id===secondId).every(x=>x.state==='resolved')).toBe(true);
+  expect(rows.filter(x=>x.entity_id===firstId).every(x=>x.state==='open')).toBe(true);
+  expect(rows).toHaveLength(4);
+ });
+ it('preserves received units while editing a different line and rejects unauthorized header changes',async()=>{
+  const created=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer},lines:[orderLine('A'),orderLine('B')]});
+  const batchId=created.body.batch_id as string;
+  const before=await call('/equipment/batches/'+batchId);
+  const groups=before.body.lines as {entry_line_id:string,units:{equipment_id:string}[]}[];
+  const receivedId=groups[0].units[0].equipment_id;
+  expect((await call('/equipment/'+receivedId+'/receive','POST',{version:1,confirmed_model:'A'})).status).toBe(200);
+  const other:Me={email:'orderer2@example.com',name:'Order employee',role:'viewer'};
+  db.sqlite.prepare('INSERT INTO staff_accounts(email,display_name,created_at,updated_at) VALUES(?,?,?,?)').run(other.email,other.name,'2026-11-04','2026-11-04');
+  db.sqlite.prepare('INSERT INTO staff_permissions(email,permission,granted_by_email,granted_at) VALUES(?,?,?,?)').run(other.email,'order_equipment',admin.email,'2026-11-04');
+  const editLines=[{entry_line_id:groups[1].entry_line_id,...orderLine('B',3)}];
+  const denied=await call('/equipment/batches/'+batchId,'PATCH',{version:1,header:{po_number:'00333'},lines:editLines},undefined,other);
+  expect(denied.status).toBe(403);
+  const allowed=await call('/equipment/batches/'+batchId,'PATCH',{version:1,lines:editLines},undefined,other);
+  expect(allowed.status).toBe(200);
+  expect(db.sqlite.prepare('SELECT status,received_at FROM equipment WHERE equipment_id=?').get(receivedId)).toEqual(expect.objectContaining({status:'received',received_at:expect.any(String)}));
+ });
+});

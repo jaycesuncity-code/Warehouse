@@ -62,8 +62,8 @@ const REQUIRED_COLUMNS: Record<string, string> = {
   customers: 'customer_id display_name normalized_name similarity_key is_stock active merged_into_customer_id version',
   equipment_types: 'equipment_type_id name department serial_expected active version',
   equipment_entry_batches: 'entry_batch_id customer_id po_number entered_by_email version',
-  equipment_batch_lines: 'entry_line_id entry_batch_id equipment_type_id ordered_qty',
-  equipment: 'equipment_id equipment_type_id customer_id status po_number po_normalized serial_normalized zone_id floor_area_shelf_id marker_x_in marker_y_in version',
+  equipment_batch_lines: 'entry_line_id entry_batch_id equipment_type_id ordered_qty manufacturer_unknown model_unknown',
+  equipment: 'equipment_id equipment_type_id customer_id status po_number po_normalized serial_normalized zone_id floor_area_shelf_id marker_x_in marker_y_in version manufacturer_unknown model_unknown cancel_reason',
   warehouse_review_items: 'review_id entity_type entity_id issue_code state version',
   equipment_label_prints: 'label_print_id equipment_id label_fingerprint confirmed_printed_at',
 };
@@ -79,7 +79,7 @@ async function healthy(db: D1): Promise<boolean> {
       ),
     ),
     db.prepare('SELECT revision FROM warehouse_meta WHERE id=1'),
-    db.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type='index' AND name IN ('equipment_status_due','equipment_customer_po','equipment_batch','equipment_serial','equipment_location','equipment_print_history','review_open_unique','staff_permissions_permission','equipment_map_coordinates')"),
+    db.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type='index' AND name IN ('equipment_status_due','equipment_customer_po','equipment_batch','equipment_serial','equipment_location','equipment_print_history','review_open_unique','staff_permissions_permission','equipment_map_coordinates','equipment_batches_recent','equipment_batches_requested','equipment_batches_vendor')"),
     db.prepare("SELECT COUNT(*) AS total FROM customers WHERE is_stock=1 AND active=1"),
     db.prepare("SELECT COUNT(*) AS total FROM equipment_types WHERE active=1"),
   ]);
@@ -88,7 +88,7 @@ async function healthy(db: D1): Promise<boolean> {
   const stockCustomers = result.at(-2)?.results[0]?.total;
   const activeTypes = result.at(-1)?.results[0]?.total;
   return Number.isSafeInteger(revision) && Number(revision) > 0
-    && Number(indexes) === 9 && Number(stockCustomers) === 1 && Number(activeTypes) > 0;
+    && Number(indexes) === 12 && Number(stockCustomers) === 1 && Number(activeTypes) > 0;
 }
 
 async function requestHash(method: string, url: URL, raw: string): Promise<string> {

@@ -163,6 +163,8 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
     status:'cancelled',cancel_reason:reason,cancelled_at:at,cancelled_by_email:me.email,updated_at:at,updated_by_email:me.email
    },'equipment_id',String(unit.equipment_id),Number(unit.version)));
    statements.push(audit(db,me,'cancel','equipment',String(unit.equipment_id),unit,after));
+   statements.push(clearReview(db,me,String(unit.equipment_id),'MISSING_MANUFACTURER'));
+   statements.push(clearReview(db,me,String(unit.equipment_id),'MISSING_MODEL'));
   }
   const remaining=existing.filter(u=>u.status==='ordered'&&!ids.includes(String(u.equipment_id))).length;
   statements.push(updateStatement(db,'equipment_entry_batches',{
@@ -222,13 +224,15 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
    const members=original?units.filter(u=>u.entry_line_id===lineId):[];
    const currentActive=members.filter(u=>u.status!=='cancelled').length;
    const quantity=edit.quantity===undefined?currentActive:validInt(edit.quantity);
-   if(quantity<1||quantity>25)return error(400,'Each saved line must retain 1 to 25 active units. Cancel an entire line using Cancel Selected instead.');
+   if(quantity<0||quantity>25||(!original&&quantity<1)||(original&&currentActive===0&&quantity!==0))
+    return error(400,'Historical fully cancelled lines must remain at zero; new lines require at least one active unit.');
    const changeCount=quantity-currentActive;
    const changedMeta=Boolean(original&&(
     info.equipment_type_id!==original.equipment_type_id||info.manufacturer!==original.manufacturer||
     info.model!==original.model||info.manufacturer_unknown!==Number(original.manufacturer_unknown)||
     info.model_unknown!==Number(original.model_unknown)
    ));
+   if(changedMeta&&currentActive===0)return error(400,'Fully cancelled lines are historical and cannot be changed.');
    if(changedMeta&&members.some(u=>u.received_at!=null)&&!receiver)
     return error(403,'Changing a partially received line requires receiving/edit permission.','forbidden');
    if(changeCount<0){
@@ -301,6 +305,8 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
     status:'cancelled',cancel_reason:cancelReason,cancelled_at:at,cancelled_by_email:me.email,updated_at:at,updated_by_email:me.email
    },'equipment_id',equipmentId,Number(unit.version)));
    statements.push(audit(db,me,'cancel','equipment',equipmentId,unit,{...unit,status:'cancelled',cancel_reason:cancelReason}));
+   statements.push(clearReview(db,me,equipmentId,'MISSING_MANUFACTURER'));
+   statements.push(clearReview(db,me,equipmentId,'MISSING_MODEL'));
   }
   if(header.vendor!==undefined&&header.vendor!==batch.vendor)
    statements.push(stmt(db,'UPDATE equipment_batch_lines SET vendor=? WHERE entry_batch_id=?',header.vendor,batchMatch[1]));

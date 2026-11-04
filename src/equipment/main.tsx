@@ -43,6 +43,8 @@ function App(){
  const [lastPdf,setLastPdf]=useState<Blob|null>(null);
  const [busy,setBusy]=useState(false),writeLock=useRef(false);
  const [pendingMutation,setPendingMutation]=useState<PendingMutation|null>(()=>readPendingMutation(browserEquipmentStore));
+ const [ordersRefreshVersion,setOrdersRefreshVersion]=useState(0);
+ const [recoveredOrder,setRecoveredOrder]=useState<{batchId:string;sequence:number}|null>(null);
  const [batchSearch,setBatchSearch]=useState(''),[batches,setBatches]=useState<R[]>([]);
  const [batchData,setBatchData]=useState<R|null>(null),[batchOffset,setBatchOffset]=useState<number|null>(null);
  const [inventoryOffset,setInventoryOffset]=useState<number|null>(null);
@@ -105,6 +107,11 @@ function App(){
    success('Recovered the original '+attempt.kind+' request without resubmitting a new operation.');
    await loadInventory();
    if(attempt.kind==='receiveBatch'||attempt.kind==='cancelBatch')await loadBatches();
+   if(['order','editOrder','cancelBatch'].includes(attempt.kind)){
+    const batchId=attempt.kind==='order'?text(result.batch_id):attempt.path.match(/\/batches\/(ebt-[a-z0-9]{8})/)?.[1];
+    if(batchId)setRecoveredOrder({batchId,sequence:Date.now()});
+    setOrdersRefreshVersion(v=>v+1);
+   }
   }catch(e){report(e);}
  }
  async function refresh(){
@@ -284,7 +291,7 @@ function App(){
   <button className={button} disabled={!selected.length} onClick={()=>setTab('labels')}>Print {selected.length} selected labels</button>
  </section>}
  {tab==='orders'&&<EquipmentOrdersPanel
-   types={types} customers={customers} me={me} can={can}
+   types={types} customers={customers} me={me} can={can} refreshVersion={ordersRefreshVersion} recoveredOrder={recoveredOrder}
    request={req} mutate={mutate}
    onReceive={batchId=>{void openBatch(batchId);}}
    onPrint={ids=>{setSelected(ids.filter(Boolean));setLastPdf(null);setPrintIds([]);setTab('labels');}}
