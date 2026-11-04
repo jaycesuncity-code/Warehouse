@@ -9,6 +9,7 @@ import { scanFeedback } from '../feedback';
 import { navigate, partPath } from '../router';
 import { loadRecent, pushRecent, type RecentScan } from '../recent';
 import { checkLabel } from '../scanner';
+import { isEquipmentId } from '../../shared/ids';
 
 const UNKNOWN_VALID_ID = 'prt-2222aaaa';
 const SIM_UNKNOWN = '__unknown__';
@@ -50,6 +51,8 @@ export function ScanScreen() {
 
   const openLabel = useCallback(
     async (raw: string) => {
+      const normalized = raw.trim().toLowerCase();
+      if (isEquipmentId(normalized)) { window.location.href = '/equipment/?id=' + encodeURIComponent(normalized); return; }
       const check = checkLabel(raw);
       if (!check.ok) {
         scanFeedback('bad');

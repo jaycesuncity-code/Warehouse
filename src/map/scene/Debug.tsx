@@ -114,6 +114,18 @@ export function SceneDebug() {
         const r = gl.domElement.getBoundingClientRect();
         return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
       },
+      equipmentMarker(id: string) {
+        const mesh = scene.getObjectByName('equipment:' + id) as THREE.Mesh | undefined;
+        if (!mesh) return null;
+        const mat = mesh.material;
+        const material = mat instanceof THREE.MeshStandardMaterial ? mat : null;
+        return {
+          x: mesh.position.x,
+          y: mesh.position.z,
+          scale: mesh.scale.x,
+          highlighted: !!material && material.emissiveIntensity >= 0.8,
+        };
+      },
       searchDots() {
         const m = scene.getObjectByName("search-dots") as THREE.InstancedMesh | undefined;
         return m?.parent?.visible ? m.count : 0;

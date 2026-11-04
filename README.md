@@ -11,6 +11,7 @@ Sun City Plumbing & Heating's inventory, QR scanner, 3D warehouse map, labels, e
 | `/map/` | Interactive floor/shelf/front views, shelves, bins, dimensions, part assignments, search and geometry editing |
 | `/labels/` | Manual/paste/CSV/Excel staging, review, selected registration, existing-part reprints, PDF preview/download/print and export |
 | `/packouts/` | Employees, kit staging, replenishment, issue, counted returns, consumption reconciliation and audit/undo |
+| `/equipment/` | Individually tracked equipment orders, scanning/receiving, customer/PO lookup, Avery 5821 labels, review and permissions |
 | `/employee/` | Employee part lookup/scanning and their issued kits |
 | `/warehouse/demo-labels.html` | Clearly identified demonstration QR labels; these are not real inventory |
 
@@ -73,7 +74,7 @@ The live and demo transports share domain rules under `src/shared/mock/`; the hi
 
 Access JWT signatures, issuer, audience and validity are checked on the server. Verified identity determines the viewer/editor/admin role. Viewers can read; editors manage inventory and kits; admins also manage building zones/openings and permitted conflict overrides. Frontend role controls are not the security boundary.
 
-See [security](docs/security.md), [database correctness and measured performance](docs/database-performance.md), and [label workflow/print verification](docs/labels.md).
+See [security](docs/security.md), [database correctness and measured performance](docs/database-performance.md), [label workflow/print verification](docs/labels.md), and [equipment rollout](docs/equipment.md).
 
 ## Deployment and release status
 

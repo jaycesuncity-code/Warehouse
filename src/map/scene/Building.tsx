@@ -10,7 +10,8 @@ import { DEFAULT_WALL_HEIGHT_IN, FOOTPRINT_Y_IN } from "../units";
 import { openArea, select } from "../actions";
 import { UNVERIFIED, zoneColor } from "../colors";
 import { buildWalls } from "../geometry";
-import { editing, getMap, isAdmin, useMap } from "../store";
+import { editing, getMap, isAdmin, toast, useMap } from "../store";
+import { pendingEquipmentPlacement, placeEquipmentAt } from "./EquipmentMarkers";
 import { segmentBoxMatrix, UNIT_BOX } from "./common";
 
 const CUTAWAY_IN = 36;
@@ -197,6 +198,15 @@ export function Building() {
     : layout.openings;
   const cutaway = viewOpts.cutaway || view === "plan";
   const pick = (fn: () => void) => (e: ThreeEvent<MouseEvent>) => {
+    // Equipment placement wins over zone-editor selection. Let the floor handle
+    // the click with its warehouse coordinates rather than selecting a zone.
+    if (pendingEquipmentPlacement()){
+      if(e.object.name.startsWith('opening:')){
+        e.stopPropagation();
+        toast('Choose a clear warehouse floor location rather than an opening.','warn');
+      }
+      return;
+    }
     if (!adminEdit || e.delta > 4) return;
     e.stopPropagation();
     fn();
@@ -204,8 +214,14 @@ export function Building() {
   // Tools / Packouts areas open their panel for every role. Admins editing keep the zone editor,
   // and an active edit tool (add shelf, move part) still gets the floor click.
   const pickArea = (z: Zone) => (e: ThreeEvent<MouseEvent>) => {
-    if (adminEdit) return pick(() => select({ kind: "zone", id: z.zone_id }))(e);
     if (e.delta > 4) return;
+    if (pendingEquipmentPlacement()){
+      if(e.intersections.some(i=>i.object.name==='shelf-hits'||i.object.name.startsWith('handle')))return;
+      e.stopPropagation();
+      void placeEquipmentAt(e.point.x,e.point.z).catch(error=>toast(error instanceof Error?error.message:String(error),'error'));
+      return;
+    }
+    if (adminEdit) return pick(() => select({ kind: "zone", id: z.zone_id }))(e);
     const s = getMap();
     if (editing(s) && s.tool) return;
     if (e.intersections.some((i) => i.object.name === "shelf-hits" || i.object.name.startsWith("handle"))) return;

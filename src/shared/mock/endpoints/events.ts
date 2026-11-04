@@ -34,6 +34,10 @@ function lookup(c: Parameters<Handler>[0], key: string): { table: Table; row: Ro
 export const undoEvent: Handler = (c) => {
   const ev = c.state.events.find((e) => e.event_id === c.params.event_id);
   if (!ev) throw notFound('That change');
+  // Equipment uses dedicated auditable cancellation and review flows. Generic inventory Undo
+  // operates on different row snapshot keys and must not attempt to replay equipment events.
+  if (['equipment','equipment_batch','equipment_customer','equipment_type','equipment_label','equipment_review','staff_permission'].includes(ev.entity))
+    throw undoStale('Equipment events cannot be undone here. Use the equipment cancellation or review workflow.');
   if ((ev.entity === 'zone' || ev.entity === 'opening') && c.role !== 'admin') throw forbidden('Only an admin can undo building edits.');
   if (ev.undone_by) throw undoStale('That change was already undone.');
 

@@ -54,6 +54,7 @@ function App() {
           <a href="/map/" className="btn btn-secondary">Warehouse map</a>
           <a href="/labels/" className="btn btn-secondary">Add Parts to List</a>
           <a href="/packouts/" className="btn btn-secondary">Packouts &amp; kits</a>
+          <a href="/equipment/" className="btn btn-secondary">Equipment</a>
         </nav>
         <p className="mt-2 text-center text-sm text-ink-soft">
           Internal use only · Sun City Plumbing &amp; Heating, Inc.
