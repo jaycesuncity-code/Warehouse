@@ -65,8 +65,9 @@ function lineInput(item:Row,prior?:Row) {
  const equipment_type_id=text(item.equipment_type_id??prior?.equipment_type_id,40);
  const manufacturer=text(item.manufacturer??prior?.manufacturer,150);
  const model=text(item.model??prior?.model,200);
- const manufacturer_unknown=item.manufacturer_unknown===undefined?Boolean(prior?.manufacturer_unknown):item.manufacturer_unknown===true;
- const model_unknown=item.model_unknown===undefined?Boolean(prior?.model_unknown):item.model_unknown===true;
+ // Persisted SQLite flags are 0/1; client flags are booleans.
+ const manufacturer_unknown=item.manufacturer_unknown===undefined?Boolean(prior?.manufacturer_unknown):item.manufacturer_unknown===true||item.manufacturer_unknown===1;
+ const model_unknown=item.model_unknown===undefined?Boolean(prior?.model_unknown):item.model_unknown===true||item.model_unknown===1;
  return {equipment_type_id,manufacturer,model,manufacturer_unknown:!manufacturer&&manufacturer_unknown?1:0,
   model_unknown:!model&&model_unknown?1:0};
 }
@@ -223,19 +224,28 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
    if(lineId&&seen.has(lineId))return error(400,'Duplicate line edit.');
    if(lineId)seen.add(lineId);
    const info=lineInput(edit,original);
-   if(!validLine(info)||!knownTypes.has(info.equipment_type_id))return error(400,'Equipment type, manufacturer, and model are required unless explicitly marked Unknown.');
+   // Compare normalized input with normalized persisted metadata. Unchanged legacy
+   // blanks and retired type IDs must not invalidate an unrelated order edit.
+   const prior=original?lineInput(original):null;
+   const changedMeta=Boolean(prior&&(
+    info.equipment_type_id!==prior.equipment_type_id||info.manufacturer!==prior.manufacturer||
+    info.model!==prior.model||info.manufacturer_unknown!==prior.manufacturer_unknown||
+    info.model_unknown!==prior.model_unknown
+   ));
    const members=original?units.filter(u=>u.entry_line_id===lineId):[];
    const currentActive=members.filter(u=>u.status!=='cancelled').length;
    const quantity=edit.quantity===undefined?currentActive:validInt(edit.quantity);
    if(quantity<0||quantity>25||(!original&&quantity<1)||(original&&currentActive===0&&quantity!==0))
     return error(400,'Historical fully cancelled lines must remain at zero; new lines require at least one active unit.');
    const changeCount=quantity-currentActive;
-   const changedMeta=Boolean(original&&(
-    info.equipment_type_id!==original.equipment_type_id||info.manufacturer!==original.manufacturer||
-    info.model!==original.model||info.manufacturer_unknown!==Number(original.manufacturer_unknown)||
-    info.model_unknown!==Number(original.model_unknown)
-   ));
    if(changedMeta&&currentActive===0)return error(400,'Fully cancelled lines are historical and cannot be changed.');
+   // New units (including quantity increases) require complete modern metadata.
+   // For existing lines, a retired type is acceptable only when it is retained
+   // unchanged and no new units are added to that type.
+   if((!original||changedMeta||changeCount>0)&&!validLine(info))
+    return error(400,'Equipment type, manufacturer, and model are required unless explicitly marked Unknown.');
+   if((!original||info.equipment_type_id!==prior?.equipment_type_id||changeCount>0)&&!knownTypes.has(info.equipment_type_id))
+    return error(400,'Choose an active equipment type for new units or type changes.');
    if(changedMeta&&members.some(u=>u.received_at!=null)&&!receiver)
     return error(403,'Changing a partially received line requires receiving/edit permission.','forbidden');
    if(changeCount<0){
@@ -248,10 +258,13 @@ export async function equipmentOrdersRoute(ctx:Context):Promise<Response|null> {
     return error(400,'Line historical quantity would exceed 25; create a separate order.');
    let newLineId=lineId;
    if(original){
-    if(changedMeta||changeCount>0) {
+    if(changedMeta) {
      statements.push(stmt(db,
       'UPDATE equipment_batch_lines SET equipment_type_id=?,manufacturer=?,model=?,manufacturer_unknown=?,model_unknown=?,ordered_qty=ordered_qty+? WHERE entry_line_id=?',
       info.equipment_type_id,info.manufacturer,info.model,info.manufacturer_unknown,info.model_unknown,Math.max(0,changeCount),lineId));
+    } else if(changeCount>0) {
+     // Never normalize or rewrite historical metadata merely to add quantity.
+     statements.push(stmt(db,'UPDATE equipment_batch_lines SET ordered_qty=ordered_qty+? WHERE entry_line_id=?',changeCount,lineId));
     }
     if(changedMeta){
      for(const unit of members.filter(u=>u.status!=='cancelled'&&!cancelIds.includes(String(u.equipment_id)))){

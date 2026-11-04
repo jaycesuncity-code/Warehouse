@@ -206,9 +206,9 @@ export async function equipmentRoute(request: Request, db: D1, me: Me, rights: s
        JOIN equipment_label_prints p ON p.label_print_id=(
           SELECT label_print_id FROM equipment_label_prints x WHERE x.equipment_id=e.equipment_id
           AND x.confirmed_printed_at IS NOT NULL ORDER BY x.confirmed_printed_at DESC,x.label_print_id DESC LIMIT 1
-       ) LIMIT 200`);
+       ) WHERE e.status<>'cancelled' LIMIT 200`);
       return reply({items:candidates.filter(r=>labelFingerprint(labelRecord(r))!==r.printed_fingerprint)
-        .map(r=>({equipment_id:r.equipment_id,customer_name:r.customer_name,po_number:r.po_number}))});
+        .map(r=>({equipment_id:r.equipment_id,customer_name:r.customer_name,po_number:r.po_number,status:r.status}))});
     }
     if (path === '/api/equipment/models' && method === 'GET') {
       const typeId=str(url.searchParams.get('type_id')), q=str(url.searchParams.get('q'),100);

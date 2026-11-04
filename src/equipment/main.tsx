@@ -4,6 +4,7 @@ import { isEquipmentId } from '../shared/ids';
 import { avery5821Pdf, type EquipmentLabel } from './pdf';
 import { StaffPanel } from './StaffPanel';
 import { EquipmentOrdersPanel } from './EquipmentOrdersPanel';
+import { explicitLabelTargetIds, printableOrderEquipmentIds, printableInventoryEquipmentIds, hasUnconfirmedPrintJob } from './print-targets';
 import { browserEquipmentStore, EquipmentApiError, createMutation, failureDisposition, performMutation, readPendingMutation, type MutationMethod, type PendingMutation } from './recoverable';
 import '../shared/ui/styles.css';
 
@@ -35,6 +36,9 @@ function App(){
  const [tab,setTab]=useState<Tab>('orders'),[me,setMe]=useState<R|null>(null),[types,setTypes]=useState<R[]>([]),[customers,setCustomers]=useState<R[]>([]);
  const [units,setUnits]=useState<R[]>([]),[reviews,setReviews]=useState<R[]>([]),[zones,setZones]=useState<R[]>([]),[stats,setStats]=useState<R|null>(null),[reprints,setReprints]=useState<R[]>([]),[notice,setNotice]=useState(''),[error,setError]=useState('');
  const [q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]);
+ // A print job has explicit targets; inventory selection and receiving are separate.
+ const [printTargetIds,setPrintTargetIds]=useState<string[]>([]);
+ const [preparedTargetIds,setPreparedTargetIds]=useState<string[]>([]);
  const [customerId,setCustomerId]=useState(browserEquipmentStore.getItem('equipment.customer')??'cus-stk22222'),[po,setPo]=useState('');
  const [unregisteredType,setUnregisteredType]=useState('');
  const [scan,setScan]=useState(new URLSearchParams(location.search).get('id')??''),[unit,setUnit]=useState<R|null>(null);
@@ -56,9 +60,35 @@ function App(){
  const can=(p:string)=>rights.includes('admin')||rights.includes(p);
  function report(e:unknown){setError(errorText(e));setNotice('');}
  function success(message:string){setNotice(message);setError('');}
+ function confirmDiscardUnconfirmedPrintJob(action:string):boolean {
+  if(!hasUnconfirmedPrintJob(printIds))return true;
+  return window.confirm('A prepared equipment label job ('+printIds.length+' label(s): '+preparedTargetIds.join(', ')+') has not been confirmed as physically printed. Discard that print job to '+action+'? You will lose the ability to confirm this job from the Labels screen.');
+ }
+ function choosePrint(ids:string[]){
+  // A lost response to label preparation still owns its original idempotency
+  // receipt. Never mix that pending job with a new selection before recovery.
+  if(readPendingMutation(browserEquipmentStore)){
+   report(new Error('Recover the pending equipment request before selecting another print job.'));
+   return;
+  }
+  const targets=explicitLabelTargetIds(ids);
+  if(!targets){report(new Error('Select 1 to 25 distinct, valid Equipment IDs before printing.'));return;}
+  if(!confirmDiscardUnconfirmedPrintJob('start a different label selection'))return;
+  setPrintTargetIds(targets);setLastPdf(null);setPrintIds([]);setPreparedTargetIds([]);setTab('labels');setError('');
+ }
+ function navigate(next:Tab){
+  if(next!==tab){
+   // Manually changing sections never inherits a previous order, scanner or
+   // inventory draft. A prepared PDF and its receipt remain confirmable.
+   setPrintTargetIds([]);setSelected([]);
+  }
+  setTab(next);setError('');
+ }
  function downloadEquipmentPdf(result:R){
   const blob=avery5821Pdf(result.labels as EquipmentLabel[]);
   setLastPdf(blob);setPrintIds(result.labels.map((x:R)=>x.label_print_id));
+  // The backend decides final print order. Display the exact IDs in the PDF.
+  setPreparedTargetIds(result.labels.map((x:R)=>String(x.equipment_id)));
   const href=URL.createObjectURL(blob),anchor=document.createElement('a');
   anchor.href=href;anchor.download='sun-city-equipment-avery-5821.pdf';anchor.click();
   setTimeout(()=>URL.revokeObjectURL(href),20000);
@@ -91,18 +121,23 @@ function App(){
   try{
    const result=await mutate(attempt.kind,attempt.path,attempt.method,attempt.body,attempt);
    if(attempt.kind==='order'){
-    setLastBatch(result.batch_id);setSelected(result.unit_ids);setTab('orders');
+    setLastBatch(result.batch_id);setTab('orders');
    }else if(attempt.kind==='customer'){
     setCustomerId(result.customer.customer_id);rememberEquipmentChoice('equipment.customer',result.customer.customer_id);
     await refresh();
    }else if(attempt.kind==='unregistered'){
     setUnit(result.unit);setScan(result.unit.equipment_id);setUnregisteredType('');setTab('receive');
    }else if(attempt.kind==='labels')setTab('labels');
-   else if(attempt.kind==='confirm')setPrintIds([]);
+   else if(attempt.kind==='confirm'){
+    // A recovered physical-print confirmation must not leave a stale PDF or
+    // Equipment IDs visible as though the print were still unconfirmed.
+    setPrintIds([]);setLastPdf(null);setPreparedTargetIds([]);setPrintTargetIds([]);
+   }
    else if(attempt.kind==='receive'){
     setUnit(null);setScan('');
    }else if(attempt.kind==='cancelBatch'){
-    setSelected([]);setPrintIds([]);setLastPdf(null);
+    // A recovered cancellation must not silently erase a separate unconfirmed print receipt.
+    setPrintTargetIds([]);
    }
    success('Recovered the original '+attempt.kind+' request without resubmitting a new operation.');
    await loadInventory();
@@ -122,7 +157,10 @@ function App(){
    const request=++inventoryRequest.current;
    try{const [items,totals]=await Promise.all([req('/equipment?q='+encodeURIComponent(query)+'&limit=100&offset='+offset),req('/equipment/reports')]);
     if(request!==inventoryRequest.current)return;
-    setUnits(old=>offset?[...old,...items.items]:items.items);setStats(totals);setInventoryOffset(items.next_offset??null);}
+    setUnits(old=>offset?[...old,...items.items]:items.items);setStats(totals);setInventoryOffset(items.next_offset??null);
+    // An initial refresh/search starts a fresh selection. Additional pages
+    // retain previous selections, but drop units now reported cancelled.
+    setSelected(previous=>offset?previous.filter(id=>!items.items.some((u:R)=>u.equipment_id===id&&u.status==='cancelled')):[]);}
    catch(e){if(request===inventoryRequest.current)report(e);}
  }
  async function loadBatches(query=batchSearch,offset=0){
@@ -134,7 +172,7 @@ function App(){
  }
  async function openBatch(batchId:string){
    try{const result=await req('/equipment/batches/'+batchId);
-    setBatchData(result);setLastBatch(batchId);setSelected(result.units.filter((u:R)=>u.status==='ordered').map((u:R)=>u.equipment_id));
+    setBatchData(result);setLastBatch(batchId);
     setTab('receive');}
    catch(e){report(e);}
  }
@@ -209,17 +247,15 @@ function App(){
     success('Re-downloaded the existing print job without creating additional label records.');
     return;
    }
-   let ids=selected.length?selected:unit?[unit.equipment_id]:[];
-   if(lastBatch&&!ids.length){const batch=await req('/equipment/batches/'+lastBatch);ids=batch.units.map((u:R)=>u.equipment_id);}
-   if(!ids.length)throw new Error('Select equipment from Inventory first.');
-   await mutate('labels','/equipment/labels/prepare','POST',{equipment_ids:ids,skip_first_positions:Number(skip)});
+   if(!printTargetIds.length)throw new Error('Choose equipment from an order, receiving, or Inventory before printing.');
+   await mutate('labels','/equipment/labels/prepare','POST',{equipment_ids:printTargetIds,skip_first_positions:Number(skip)});
    success('Avery 5821 PDF generated. Print at 100% / Actual Size, then confirm only if printed successfully.');
   }catch(e){report(e);}
  }
  async function confirmPrint(){
   try{if(!printIds.length)throw new Error('Generate PDF before confirming a print.');
    const result=await mutate('confirm','/equipment/labels/confirm','POST',{prepared_print_ids:printIds});
-   success('Confirmed '+result.confirmed+' printed equipment labels.');setPrintIds([]);
+   success('Confirmed '+result.confirmed+' printed equipment labels.');setPrintIds([]);setLastPdf(null);setPreparedTargetIds([]);setPrintTargetIds([]);
   }catch(e){report(e);}
  }
  async function printCalibration(){
@@ -258,6 +294,9 @@ function App(){
   try{await mutate('review','/equipment/reviews/'+item.review_id,'PATCH',{version:item.version,state:'resolved'});await loadReviews();success('Review item resolved.');}
   catch(e){report(e);}
  }
+ // A disabled cancelled checkbox can never remain visually checked or be
+ // submitted, even if it was selected before a concurrent status change.
+ const inventoryPrintIds=printableInventoryEquipmentIds(selected,units);
  return <div className="min-h-screen bg-[#f4f3f3] text-gray-900">
  <header className="bg-[#6B1A2C] text-white border-b-4 border-[#C9A84C] p-4">
   <div className="mx-auto max-w-5xl flex justify-between items-center gap-3"><div><h1 className="text-2xl font-extrabold">Sun City Equipment</h1><p>One unit, one QR label — order through receiving</p></div><a href="/" className="text-white underline">Warehouse home</a></div>
@@ -265,7 +304,7 @@ function App(){
  <main className="mx-auto max-w-5xl px-3 py-5">
  <nav className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5" aria-label="Equipment navigation">
  {([['orders','Equipment Orders'],['inventory','Find equipment'],['receive','Receive / scan'],['labels','Print labels'],['reviews','Needs attention'],...(can('admin')?[['customers','Customers']]:[]),...(can('manage_staff')?[['staff','Staff permissions']]:[])] as [Tab,string][]).map(([key,label])=>
- <button key={key} type="button" onClick={()=>{setTab(key);setError('');}} className={tab===key?button:base}>{label}</button>)}
+ <button key={key} type="button" onClick={()=>navigate(key)} className={tab===key?button:base}>{label}</button>)}
  </nav>
  {error&&<div role="alert" className="mb-4 p-3 border border-red-500 bg-red-50 text-red-900 rounded-lg">{error}</div>}
  {notice&&<div role="status" className="mb-4 p-3 border border-[#C9A84C] bg-yellow-50 rounded-lg">{notice}</div>}
@@ -278,23 +317,23 @@ function App(){
  {tab==='inventory'&&<section className="space-y-3">
   <h2 className="text-xl font-bold">Equipment inventory</h2>
   {stats&&<div className="grid grid-cols-2 md:grid-cols-4 gap-2">{[['Overdue',stats.overdue],['Missing serial',stats.missing_serial],['Need location',stats.without_location],['Ordered',(stats.statuses||[]).find((s:R)=>s.status==='ordered')?.total??0]].map(([label,value])=><div className="p-3 border bg-white rounded-lg" key={text(label)}><b className="text-xl">{value}</b><p className="text-sm">{label}</p></div>)}</div>}
-  <form className="flex gap-2" onSubmit={e=>{e.preventDefault();void loadInventory();}}><input className={base} placeholder="Search customer, model, PO, serial, equipment ID" value={q} onChange={e=>setQ(e.target.value)}/><button className={button}>Search</button></form>
+  <form className="flex gap-2" onSubmit={e=>{e.preventDefault();void loadInventory();}}><input className={base} placeholder="Search customer, model, PO, serial, equipment ID" value={q} onChange={e=>{setQ(e.target.value);setSelected([]);}}/><button className={button}>Search</button></form>
   <p className="text-sm text-gray-600">Select units to print their labels together.</p>
   <div className="space-y-2">{units.map(u=><article key={u.equipment_id} className="p-3 bg-white border rounded-lg flex gap-3 items-start">
-   <input type="checkbox" aria-label={'Select '+u.equipment_id} checked={selected.includes(u.equipment_id)}
-    onChange={e=>{setSelected(s=>e.target.checked?[...s,u.equipment_id]:s.filter(x=>x!==u.equipment_id));setPrintIds([]);setLastPdf(null);}}/>
+   <input type="checkbox" aria-label={'Select '+u.equipment_id} disabled={u.status==='cancelled'} checked={u.status!=='cancelled'&&inventoryPrintIds.includes(u.equipment_id)}
+    onChange={e=>{if(u.status==='cancelled')return;setSelected(s=>e.target.checked?[...s,u.equipment_id]:s.filter(x=>x!==u.equipment_id));setPrintTargetIds([]);}}/>
    <div className="flex-1 min-w-0"><b>{u.customer_name}</b> · {u.type_name} · {u.ordered_model}<p className="text-sm">PO {u.po_number||'—'} · {u.status} · {u.equipment_id}</p>
     {u.marker_x_in!=null&&u.marker_y_in!=null&&<a className="text-sm font-semibold underline text-[#6B1A2C]" href={'/map/?equipment='+encodeURIComponent(u.equipment_id)}>Show on warehouse map</a>}</div>
    <button className="underline text-[#6B1A2C]" onClick={()=>{setScan(u.equipment_id);void findUnit(u.equipment_id);}}>Open</button>
    </article>)}</div>
   {inventoryOffset!==null&&<button className={base} onClick={()=>void loadInventory(q,inventoryOffset)}>Load more equipment</button>}
-  <button className={button} disabled={!selected.length} onClick={()=>setTab('labels')}>Print {selected.length} selected labels</button>
+  <button className={button} disabled={!inventoryPrintIds.length||inventoryPrintIds.length>25} onClick={()=>choosePrint(inventoryPrintIds)}>Print {inventoryPrintIds.length} selected labels</button>
  </section>}
  {tab==='orders'&&<EquipmentOrdersPanel
    types={types} customers={customers} me={me} can={can} refreshVersion={ordersRefreshVersion} recoveredOrder={recoveredOrder}
    request={req} mutate={mutate}
    onReceive={batchId=>{void openBatch(batchId);}}
-   onPrint={ids=>{setSelected(ids.filter(Boolean));setLastPdf(null);setPrintIds([]);setTab('labels');}}
+   onPrint={choosePrint}
    onCustomerAdded={refresh}
   />}
  {tab==='receive'&&<section className="space-y-3">
@@ -318,6 +357,8 @@ function App(){
     {batchData.units.map((u:R)=><button type="button" key={u.equipment_id} onClick={()=>void findUnit(u.equipment_id)} className="block text-left w-full border-b p-1">
      {u.equipment_id} · {u.type_name} · {u.ordered_model} · {u.status}</button>)}
     <button type="button" className={button} disabled={!can('receive_edit_equipment')||!batchData.remaining} onClick={()=>void receiveBatch()}>Receive {batchData.remaining} remaining units — serials later</button>
+    <button type="button" className={base} disabled={!printableOrderEquipmentIds(batchData.units).length}
+     onClick={()=>choosePrint(printableOrderEquipmentIds(batchData.units))}>Print this order's eligible labels</button>
    </div>}
   </section>
   <form onSubmit={e=>{e.preventDefault();void findUnit(scan);}} className="flex gap-2"><input autoFocus className={base} placeholder="Scan or enter eqp- ID" value={scan} onChange={e=>setScan(e.target.value)}/><button className={button}>Find QR</button></form>
@@ -332,6 +373,7 @@ function App(){
    <label className="block">Warehouse zone <select className={base} value={zoneId} onChange={e=>setZoneId(e.target.value)}><option value="">Not assigned yet</option>{zones.map(z=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}</select></label>
    <label className="block">Location notes <input className={base} value={locationNote} onChange={e=>setLocationNote(e.target.value)}/></label>
    <button className={button} disabled={!can('receive_edit_equipment')||unit.status!=='ordered'} onClick={receive}>Mark received</button>
+   <button className={base} disabled={unit.status==='cancelled'} onClick={()=>choosePrint([unit.equipment_id])}>Print this equipment label</button>
    {(can('receive_edit_equipment')||(can('order_equipment')&&unit.entered_by_email===me?.email&&unit.status==='ordered'))&&
     <details className="border rounded p-3 space-y-2"><summary className="cursor-pointer font-bold">Correct equipment details</summary>
      <div className="space-y-2 py-2">
@@ -378,16 +420,26 @@ function App(){
  {tab==='labels'&&<section className="bg-white border rounded-xl p-4 space-y-3">
   <h2 className="text-xl font-bold">Avery 5821 equipment labels</h2>
   <p>US Letter · 2 columns × 4 rows · 4 × 2.5 inches per label. QR contains only its equipment ID. Print up to 25 units per job.</p>
-  <p>{selected.length} unit(s) selected{lastBatch?' · Last order batch '+lastBatch:''}</p>
+  <p>{printTargetIds.length} explicit label target(s) selected</p>
+  {printTargetIds.length>0?<div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+   <p className="font-semibold">Verify these exact Equipment IDs before generating a new PDF:</p>
+   <ul aria-label="Equipment IDs to print" className="grid gap-1 sm:grid-cols-2">
+    {printTargetIds.map(id=><li key={id}><code className="font-mono text-sm">{id}</code></li>)}
+   </ul></div>:<p role="note" className="text-sm text-gray-600">No new print selection. Select eligible Equipment IDs in Orders, Inventory or Receiving before generating a new PDF.</p>}
+  {printIds.length>0&&preparedTargetIds.length>0&&<div className="rounded-lg border p-3 space-y-2">
+   <p className="font-semibold">Existing prepared PDF — confirm only after physically printing:</p>
+   <ul aria-label="Equipment IDs in prepared PDF" className="grid gap-1 sm:grid-cols-2">
+    {preparedTargetIds.map(id=><li key={id}><code className="font-mono text-sm">{id}</code></li>)}
+   </ul></div>}
 
-  <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{setSkip(Number(e.target.value));setLastPdf(null);setPrintIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
+  <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{const next=Number(e.target.value);if(next===skip||!confirmDiscardUnconfirmedPrintJob('change the used label positions'))return;setSkip(next);setLastPdf(null);setPrintIds([]);setPreparedTargetIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
   <div className="flex gap-2 flex-wrap">
-   <button className={button} onClick={prepare} disabled={busy||(!selected.length&&!unit&&!lastBatch)||selected.length>25}>{printIds.length&&lastPdf?'Re-download same equipment PDF':'Generate / download equipment PDF'}</button>
+   <button className={button} onClick={prepare} disabled={busy||(!printTargetIds.length&&!(printIds.length&&lastPdf))||printTargetIds.length>25}>{printIds.length&&lastPdf?'Re-download same equipment PDF':'Generate / download equipment PDF'}</button>
    <button className={base} style={{width:'auto'}} onClick={printCalibration}>Download 1-inch alignment test</button>
    <button className={button} onClick={confirmPrint} disabled={!printIds.length||!lastPdf}>Confirm physically printed</button>
   </div>
   <p className="text-sm">Print using <strong>Actual Size / 100%</strong>. Downloading a PDF does not mark equipment labels as physically printed.</p>
-  {reprints.length>0&&<div className="border-t pt-3"><h3 className="font-bold">Reprint needed ({reprints.length})</h3>{reprints.map(u=><button key={u.equipment_id} className="underline block" onClick={()=>{setSelected([u.equipment_id]);setPrintIds([]);setLastPdf(null);}}>{u.customer_name} · {u.equipment_id}</button>)}</div>}
+  {reprints.some(u=>u.status!=='cancelled')&&<div className="border-t pt-3"><h3 className="font-bold">Reprint needed ({reprints.filter(u=>u.status!=='cancelled').length})</h3>{reprints.filter(u=>u.status!=='cancelled').map(u=><button key={u.equipment_id} className="underline block" onClick={()=>choosePrint([u.equipment_id])}>{u.customer_name} · {u.equipment_id}</button>)}</div>}
  </section>}
  {tab==='customers'&&can('admin')&&<section className="bg-white border rounded-xl p-4 space-y-3">
   <h2 className="text-xl font-bold">Customer duplicate management</h2>

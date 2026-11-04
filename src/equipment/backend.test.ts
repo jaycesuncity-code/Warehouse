@@ -295,3 +295,108 @@ describe('order correction regression cases',()=>{
   expect(db.sqlite.prepare('SELECT status,received_at FROM equipment WHERE equipment_id=?').get(receivedId)).toEqual(expect.objectContaining({status:'received',received_at:expect.any(String)}));
  });
 });
+
+
+describe('legacy order editing and explicit label regression coverage',()=>{
+ const line=(quantity=2)=>({equipment_type_id:furnace,manufacturer:'Carrier',model:'ABC',quantity});
+ const create=async()=>{
+  const result=await call('/equipment/orders','POST',{header:{customer_id:stockCustomer,po_number:'0000001'},lines:[line()]});
+  expect(result.status).toBe(201);
+  const batchId=result.body.batch_id as string;
+  const details=await call('/equipment/batches/'+batchId);
+  const entryLineId=(details.body.lines as {entry_line_id:string}[])[0].entry_line_id;
+  return {batchId,entryLineId,ids:result.body.unit_ids as string[]};
+ };
+ it.each([
+  {manufacturer:'',model:'ABC',header:{po_number:'0000099'}},
+  {manufacturer:'Carrier',model:'',header:{expected_date:'2026-12-01'}},
+  {manufacturer:'',model:'',header:{notes:'Legacy record note update'}}
+ ])('preserves blank legacy metadata on an unrelated header edit: %j',async({manufacturer,model,header})=>{
+  const {batchId,entryLineId,ids}=await create();
+  db.sqlite.prepare('UPDATE equipment_batch_lines SET manufacturer=?,model=?,manufacturer_unknown=0,model_unknown=0 WHERE entry_line_id=?')
+   .run(manufacturer,model,entryLineId);
+  db.sqlite.prepare('UPDATE equipment SET manufacturer=?,manufacturer_normalized=?,ordered_model=?,manufacturer_unknown=0,model_unknown=0 WHERE entry_batch_id=?')
+   .run(manufacturer,manufacturer.toUpperCase(),model,batchId);
+  const before=db.sqlite.prepare('SELECT equipment_id,status,manufacturer,ordered_model,manufacturer_unknown,model_unknown FROM equipment WHERE entry_batch_id=? ORDER BY equipment_id').all(batchId);
+  const edited=await call('/equipment/batches/'+batchId,'PATCH',{
+   version:1,header,lines:[{entry_line_id:entryLineId,equipment_type_id:furnace,manufacturer,model,manufacturer_unknown:false,model_unknown:false,quantity:2}]
+  });
+  expect(edited.status).toBe(200);
+  const after=db.sqlite.prepare('SELECT equipment_id,status,manufacturer,ordered_model,manufacturer_unknown,model_unknown FROM equipment WHERE entry_batch_id=? ORDER BY equipment_id').all(batchId);
+  expect(after).toEqual(before);
+  expect((after as {equipment_id:string}[]).map(x=>x.equipment_id)).toEqual([...ids].sort());
+  expect(db.sqlite.prepare('SELECT manufacturer,model,manufacturer_unknown,model_unknown FROM equipment_batch_lines WHERE entry_line_id=?').get(entryLineId))
+   .toEqual({manufacturer,model,manufacturer_unknown:0,model_unknown:0});
+ });
+ it('retains an inactive historical type without accepting new units of it',async()=>{
+  const {batchId,entryLineId}=await create();
+  db.sqlite.prepare('UPDATE equipment_types SET active=0 WHERE equipment_type_id=?').run(furnace);
+  const saved=await call('/equipment/batches/'+batchId,'PATCH',{
+   version:1,header:{expected_date:'2026-12-02'},lines:[{entry_line_id:entryLineId,...line()}]
+  });
+  expect(saved.status).toBe(200);
+  expect((await call('/equipment/batches/'+batchId,'PATCH',{
+   version:2,lines:[{equipment_type_id:furnace,manufacturer:'Carrier',model:'New',quantity:1}]
+  })).status).toBe(400);
+  expect((await call('/equipment/batches/'+batchId,'PATCH',{
+   version:2,lines:[{entry_line_id:entryLineId,...line(3)}]
+  })).status).toBe(400);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment WHERE entry_batch_id=?').get(batchId)).toEqual({n:2});
+ });
+ it('requires modern metadata validation for deliberate changes or quantity increases',async()=>{
+  const {batchId,entryLineId}=await create();
+  db.sqlite.prepare('UPDATE equipment_batch_lines SET manufacturer=?,manufacturer_unknown=0 WHERE entry_line_id=?').run('',entryLineId);
+  db.sqlite.prepare('UPDATE equipment SET manufacturer=?,manufacturer_unknown=0 WHERE entry_batch_id=?').run('',batchId);
+  const base={entry_line_id:entryLineId,equipment_type_id:furnace,manufacturer:'',model:'ABC',manufacturer_unknown:false,model_unknown:false,quantity:2};
+  expect((await call('/equipment/batches/'+batchId,'PATCH',{version:1,lines:[{...base,model:'NEW'}]})).status).toBe(400);
+  expect((await call('/equipment/batches/'+batchId,'PATCH',{version:1,lines:[{...base,quantity:3}]})).status).toBe(400);
+  expect((await call('/equipment/batches/'+batchId,'PATCH',{version:1,lines:[{...base,manufacturer_unknown:true}]})).status).toBe(200);
+  expect(db.sqlite.prepare('SELECT manufacturer_unknown FROM equipment_batch_lines WHERE entry_line_id=?').get(entryLineId)).toEqual({manufacturer_unknown:1});
+ });
+ it('preserves received-unit authorization for legacy orders',async()=>{
+  const {batchId,entryLineId,ids}=await create();
+  expect((await call('/equipment/'+ids[0]+'/receive','POST',{version:1,confirmed_model:'ABC'})).status).toBe(200);
+  db.sqlite.prepare('UPDATE equipment_batch_lines SET model=?,model_unknown=0 WHERE entry_line_id=?').run('',entryLineId);
+  db.sqlite.prepare('UPDATE equipment SET ordered_model=?,model_unknown=0 WHERE entry_batch_id=?').run('',batchId);
+  const orderer:Me={email:'legacy-orderer@example.com',name:'Legacy orderer',role:'viewer'};
+  db.sqlite.prepare('INSERT INTO staff_accounts(email,display_name,created_at,updated_at) VALUES(?,?,?,?)').run(orderer.email,orderer.name,'2026-11-04','2026-11-04');
+  db.sqlite.prepare('INSERT INTO staff_permissions(email,permission,granted_by_email,granted_at) VALUES(?,?,?,?)').run(orderer.email,'order_equipment',admin.email,'2026-11-04');
+  const patched=await call('/equipment/batches/'+batchId,'PATCH',{
+   version:1,header:{po_number:'0000088'},lines:[{entry_line_id:entryLineId,...line(),model:''}]
+  },undefined,orderer);
+  expect(patched.status).toBe(403);
+  expect(db.sqlite.prepare('SELECT po_number FROM equipment_entry_batches WHERE entry_batch_id=?').get(batchId)).toEqual({po_number:'0000001'});
+ });
+ it('rejects empty label requests without a stale-equipment fallback',async()=>{
+  const {ids}=await create();
+  const empty=await call('/equipment/labels/prepare','POST',{equipment_ids:[],skip_first_positions:0});
+  expect(empty.status).toBe(400);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment_label_prints').get()).toEqual({n:0});
+  expect(ids).toHaveLength(2);
+ });
+ it('rejects preparation of cancelled units and preserves an eligible unit from the same order',async()=>{
+  const {batchId,ids}=await create();
+  const cancelled=await call('/equipment/'+ids[0]+'/cancel','POST',{version:1,reason:'Supplier unavailable'});
+  expect(cancelled.status).toBe(200);
+  expect((await call('/equipment/labels/prepare','POST',{equipment_ids:[ids[0]],skip_first_positions:0})).status).toBe(409);
+  const prepared=await call('/equipment/labels/prepare','POST',{equipment_ids:[ids[1]],skip_first_positions:0});
+  expect(prepared.status).toBe(200);
+  const labels=prepared.body.labels as {equipment_id:string}[];
+  expect(labels.map(x=>x.equipment_id)).toEqual([ids[1]]);
+  expect((await call('/equipment/batches/'+batchId)).body.cancelled).toBe(1);
+ });
+ it('omits cancelled equipment from reprint-needed results even when its fingerprint changed',async()=>{
+  const {ids}=await create();
+  const printed=await call('/equipment/labels/prepare','POST',{equipment_ids:[ids[0]],skip_first_positions:0});
+  expect(printed.status).toBe(200);
+  const labelId=(printed.body.labels as {label_print_id:string}[])[0].label_print_id;
+  expect((await call('/equipment/labels/confirm','POST',{prepared_print_ids:[labelId]})).status).toBe(200);
+  // Simulate a previously confirmed print becoming stale after a model correction.
+  db.sqlite.prepare('UPDATE equipment SET ordered_model=? WHERE equipment_id=?').run('CORRECTED',ids[0]);
+  const before=await call('/equipment/labels/reprint-needed');
+  expect((before.body.items as {equipment_id:string}[]).some(x=>x.equipment_id===ids[0])).toBe(true);
+  expect((await call('/equipment/'+ids[0]+'/cancel','POST',{version:1,reason:'Equipment changed'})).status).toBe(200);
+  const after=await call('/equipment/labels/reprint-needed');
+  expect((after.body.items as {equipment_id:string}[]).some(x=>x.equipment_id===ids[0])).toBe(false);
+ });
+});

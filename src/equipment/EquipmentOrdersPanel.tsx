@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
 import { EquipmentApiError } from './recoverable';
+import { printableOrderEquipmentIds } from './print-targets';
 
 type RecordRow = Record<string, any>; // Matches the existing equipment API's flexible response shape.
 type Line = {entry_line_id?:string;equipment_type_id:string;manufacturer:string;model:string;quantity:number;manufacturer_unknown:boolean;model_unknown:boolean};
@@ -88,8 +89,18 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
  }
  const updateLine=(i:number,update:Partial<Line>)=>setLines(current=>current.map((item,j)=>i===j?{...item,...update}:item));
  const valid=header.customer_id&&lines.length>0&&lines.length<=10&&(view==='edit'||count(lines)>0)&&count(lines)<=25&&
-  lines.every(l=>(view==='edit'&&l.entry_line_id&&selected?.lines?.some((x:RecordRow)=>x.entry_line_id===l.entry_line_id&&Number(x.active)===0)&&l.quantity===0)
-   ||(required(l)&&Number.isInteger(Number(l.quantity))&&Number(l.quantity)>0&&Number(l.quantity)<=25));
+  lines.every(l=>{
+   const prior=view==='edit'&&l.entry_line_id?(selected?.lines as RecordRow[]|undefined)?.find(x=>x.entry_line_id===l.entry_line_id):undefined;
+   const unchanged=Boolean(prior&&l.equipment_type_id===prior.equipment_type_id&&
+    l.manufacturer.trim()===String(prior.manufacturer??'').trim()&&l.model.trim()===String(prior.model??'').trim()&&
+    l.manufacturer_unknown===Boolean(prior.manufacturer_unknown)&&l.model_unknown===Boolean(prior.model_unknown));
+   if(prior&&Number(prior.active)===0)return l.quantity===0&&unchanged;
+   if(!Number.isInteger(l.quantity)||l.quantity<1||l.quantity>25)return false;
+   const addsUnits=!prior||l.quantity>Number(prior.active);
+   const typeChanged=Boolean(prior&&l.equipment_type_id!==prior.equipment_type_id);
+   if((addsUnits||typeChanged)&&!types.some(t=>t.equipment_type_id===l.equipment_type_id))return false;
+   return unchanged&&!addsUnits||Boolean(required(l));
+  });
  function validate(){
   if(!valid){setError('Select a customer and equipment type, enter manufacturer/model or mark each missing field Unknown, and keep quantities within 25 units.');return false;}
   setError('');return true;
@@ -209,6 +220,11 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
    <div className="grid gap-2 md:grid-cols-2">
     <label>Equipment type<select className={input} value={line.equipment_type_id} onChange={e=>updateLine(i,{equipment_type_id:e.target.value})}>
       <option value="">Choose type</option>{types.map(t=><option key={t.equipment_type_id} value={t.equipment_type_id}>{t.name} — {t.department}</option>)}
+      {view==='edit'&&line.entry_line_id&&(()=>{
+       const prior=(selected?.lines as RecordRow[]|undefined)?.find(x=>x.entry_line_id===line.entry_line_id);
+       return prior&&!types.some(t=>t.equipment_type_id===prior.equipment_type_id)?
+        <option value={prior.equipment_type_id}>{prior.type_name||prior.equipment_type_id} — inactive (existing order only)</option>:null;
+      })()}
      </select></label>
     <label>Quantity<input type="number" min={1} max={25} className={input} value={line.quantity} onChange={e=>updateLine(i,{quantity:Number(e.target.value)})}/></label>
     <div><label className="block" htmlFor={'equipment-manufacturer-'+i}>Manufacturer</label><input id={'equipment-manufacturer-'+i} aria-label="Manufacturer" className={input} list={'equipment-order-manufacturer-hints-'+i} value={line.manufacturer} disabled={line.manufacturer_unknown} onFocus={()=>void loadModelHints(line.equipment_type_id)} onChange={e=>updateLine(i,{manufacturer:e.target.value})}/>
@@ -330,7 +346,10 @@ export function EquipmentOrdersPanel({types,customers,me,can,request,mutate,onRe
     </div>}
    </div>)}
    <div className="flex flex-wrap gap-2"><button className={secondary} onClick={()=>onReceive(selectedId)}>Go to receiving</button>
-    <button className={secondary} onClick={()=>onPrint((selected.units as RecordRow[]).filter(u=>u.status!=='cancelled').map(u=>u.equipment_id).slice(0,25))}>Print order labels</button></div>
+    <button className={secondary} disabled={!printableOrderEquipmentIds(selected.units as RecordRow[]).length}
+     onClick={()=>onPrint(printableOrderEquipmentIds(selected.units as RecordRow[]))}>Print order labels</button></div>
+   {!printableOrderEquipmentIds(selected.units as RecordRow[]).length&&
+    <p role="note" className="text-sm text-gray-600">No eligible equipment labels are available for this order.</p>}
    {can('order_equipment')&&selected.remaining>0&&<div className="space-y-2 rounded-lg border p-3">
     <h4 className="font-bold">Cancel outstanding equipment</h4>
     <p className="text-sm">{cancelIds.length?cancelIds.length+' selected outstanding units':'No selection — cancel all remaining outstanding units'}.</p>

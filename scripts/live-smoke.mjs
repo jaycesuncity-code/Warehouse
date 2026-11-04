@@ -304,7 +304,7 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     await page.getByRole('button', { name: new RegExp(browserEquipment.equipment_id) }).click();
     await page.getByPlaceholder('Scan/type serial (may be blank)').fill('BROWSER-SERIAL-1');
     await page.getByRole('button', { name: 'Mark received' }).click();
-    await expect(page.getByRole('status')).toContainText('Received '+browserEquipment.equipment_id);
+    await expect(page.getByRole('status').filter({ hasText: 'Received '+browserEquipment.equipment_id })).toBeVisible();
     assert.equal(await scalar("SELECT COUNT(*) FROM equipment WHERE po_number='0007732' AND status='received' AND serial_number='BROWSER-SERIAL-1'"),1);
     const equipmentLocation = await post('/api/equipment/'+browserEquipment.equipment_id+'/place',
       {version:2,x_in:120,y_in:500},{role:'admin'});
@@ -359,6 +359,138 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     await expect(page.getByRole('link', { name: 'Find staged equipment on map' })).toBeVisible();
     await page.getByRole('link', { name: 'Find staged equipment on map' }).click();
     await assertEquipmentMapFocus('plan');
+
+    // Browser regression: explicit Order A targets must never be recycled by
+    // the fully cancelled Order B's Print action.
+    await visit('/equipment/');
+    await page.getByPlaceholder('Search PO, customer, model, manufacturer, vendor, batch, requester').fill('0007732');
+    await page.getByRole('button', { name: 'Search all orders' }).click();
+    await page.getByRole('button', { name: /0007732/ }).click();
+    await page.getByRole('button', { name: 'Print order labels' }).click();
+    await expect(page.getByText('1 explicit label target(s) selected')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Equipment IDs to print' })).toContainText(browserEquipment.equipment_id);
+    const equipmentPdfDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Generate / download equipment PDF' }).click();
+    assert.equal((await equipmentPdfDownload).suggestedFilename(), 'sun-city-equipment-avery-5821.pdf');
+    await expect(page.getByRole('list', { name: 'Equipment IDs in prepared PDF' })).toContainText(browserEquipment.equipment_id);
+    // Declining a discard warning must preserve both the prepared receipt
+    // and the prior first-sheet skip setting.
+    const usedPositions = page.getByRole('combobox', { name: 'Used positions on first sheet' });
+    await expect(usedPositions).toHaveValue('0');
+    page.once('dialog', async (dialog) => {
+      assert.match(dialog.message(), /not been confirmed as physically printed/);
+      await dialog.dismiss();
+    });
+    await usedPositions.selectOption('2');
+    await expect(usedPositions).toHaveValue('0');
+    await expect(page.getByRole('list', { name: 'Equipment IDs in prepared PDF' })).toContainText(browserEquipment.equipment_id);
+    await expect(page.getByRole('button', { name: 'Confirm physically printed' })).toBeEnabled();
+    // A tab change invalidates the draft, but cannot silently lose the
+    // physical-print confirmation on a previously prepared PDF.
+    await page.getByRole('button', { name: 'Receive / scan' }).click();
+    await page.getByRole('button', { name: 'Print labels' }).click();
+    await expect(page.getByText('0 explicit label target(s) selected')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Equipment IDs to print' })).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Equipment IDs in prepared PDF' })).toContainText(browserEquipment.equipment_id);
+    await expect(page.getByRole('button', { name: 'Confirm physically printed' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Confirm physically printed' }).click();
+    await expect(page.getByRole('button', { name: 'Confirm physically printed' })).toBeDisabled();
+    const previousLabelCount = await scalar('SELECT COUNT(*) FROM equipment_label_prints');
+    const fullyCancelled = await post('/api/equipment/orders', {
+      header: { customer_id: 'cus-stk22222', po_number: '0007743' },
+      lines: [{ equipment_type_id: 'ety-22222222', manufacturer: 'Carrier', model: 'B', quantity: 1 }],
+    }, { role: 'admin', expected: 201 });
+    await post(`/api/equipment/batches/${fullyCancelled.batch_id}/cancel`, {
+      version: 1, reason: 'Equipment changed',
+    }, { role: 'admin' });
+    await page.getByRole('button', { name: 'Equipment Orders' }).click();
+    await page.getByPlaceholder('Search PO, customer, model, manufacturer, vendor, batch, requester').fill('0007743');
+    await page.getByRole('button', { name: 'Search all orders' }).click();
+    await page.getByRole('button', { name: /0007743/ }).click();
+    await expect(page.getByRole('button', { name: 'Print order labels' })).toBeDisabled();
+    await expect(page.getByText('No eligible equipment labels are available for this order.')).toBeVisible();
+    assert.equal(await scalar('SELECT COUNT(*) FROM equipment_label_prints'), previousLabelCount);
+    // Cancelled inventory entries are not selectable, and cannot inflate the
+    // printed selection count even if they were selected before cancellation.
+    await page.getByRole('button', { name: 'Find equipment' }).click();
+    await page.getByPlaceholder('Search customer, model, PO, serial, equipment ID').fill('0007743');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const cancelledCheckbox = page.getByRole('checkbox', { name: 'Select ' + fullyCancelled.unit_ids[0] });
+    await expect(cancelledCheckbox).toBeDisabled();
+    await expect(cancelledCheckbox).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Print 0 selected labels' })).toBeDisabled();
+    // Selecting an active inventory checkbox then cancelling that unit must
+    // clear the checked state and leave no printable selection after refresh.
+    const newlyCancelled = await post('/api/equipment/orders', {
+      header: { customer_id: 'cus-stk22222', po_number: '0007750' },
+      lines: [{ equipment_type_id: 'ety-22222222', manufacturer: 'Carrier', model: 'C', quantity: 1 }],
+    }, { role: 'admin', expected: 201 });
+    const formerlyActiveId = newlyCancelled.unit_ids[0];
+    await page.getByPlaceholder('Search customer, model, PO, serial, equipment ID').fill('0007750');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const formerlyActiveCheckbox = page.getByRole('checkbox', { name: 'Select ' + formerlyActiveId });
+    await expect(formerlyActiveCheckbox).toBeEnabled();
+    await formerlyActiveCheckbox.check();
+    await expect(formerlyActiveCheckbox).toBeChecked();
+    await post(`/api/equipment/${formerlyActiveId}/cancel`, {version: 1, reason: 'Equipment changed'}, {role: 'admin'});
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(formerlyActiveCheckbox).toBeDisabled();
+    await expect(formerlyActiveCheckbox).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Print 0 selected labels' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Receive / scan' }).click();
+    await page.getByRole('button', { name: 'Print labels' }).click();
+    await expect(page.getByText('0 explicit label target(s) selected')).toBeVisible();
+    assert.equal(await scalar('SELECT COUNT(*) FROM equipment_label_prints'), previousLabelCount);
+
+    // Browser regression: a migrated-style blank line may have its PO edited
+    // without forcing unrelated historical manufacturer/model changes.
+    const legacy = await post('/api/equipment/orders', {
+      header: { customer_id: 'cus-stk22222', po_number: '0007744' },
+      lines: [{ equipment_type_id: 'ety-22222222', manufacturer: 'Carrier', model: 'LEGACY', quantity: 1 }],
+    }, { role: 'admin', expected: 201 });
+    await db.prepare('UPDATE equipment_batch_lines SET manufacturer=?,model=?,manufacturer_unknown=0,model_unknown=0 WHERE entry_batch_id=?')
+      .bind('', '', legacy.batch_id).run();
+    await db.prepare('UPDATE equipment SET manufacturer=?,manufacturer_normalized=?,ordered_model=?,manufacturer_unknown=0,model_unknown=0 WHERE entry_batch_id=?')
+      .bind('', '', '', legacy.batch_id).run();
+    await page.getByRole('button', { name: 'Equipment Orders' }).click();
+    await page.getByPlaceholder('Search PO, customer, model, manufacturer, vendor, batch, requester').fill('0007744');
+    await page.getByRole('button', { name: 'Search all orders' }).click();
+    await page.getByRole('button', { name: /0007744/ }).click();
+    await page.getByRole('button', { name: 'Edit Order' }).click();
+    await page.getByPlaceholder('No PO').fill('0007745');
+    await expect(page.getByRole('button', { name: 'Save Changes' })).toBeEnabled();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Order changes saved and audited.' })).toBeVisible();
+    const historical = await db.prepare('SELECT po_number FROM equipment_entry_batches WHERE entry_batch_id=?')
+      .bind(legacy.batch_id).first();
+    assert.equal(historical.po_number, '0007745');
+    const oldLine = await db.prepare('SELECT manufacturer,model FROM equipment_batch_lines WHERE entry_batch_id=?')
+      .bind(legacy.batch_id).first();
+    assert.equal(oldLine.manufacturer, '');
+    assert.equal(oldLine.model, '');
+
+    // Accepting the warning intentionally discards confirmation controls, but
+    // must not submit another preparation or duplicate a label-print row.
+    await page.getByRole('button', { name: 'Find equipment' }).click();
+    await page.getByPlaceholder('Search customer, model, PO, serial, equipment ID').fill('0007732');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select ' + browserEquipment.equipment_id }).check();
+    await page.getByRole('button', { name: 'Print 1 selected labels' }).click();
+    const discardTestDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Generate / download equipment PDF' }).click();
+    await discardTestDownload;
+    await expect(page.getByRole('list', { name: 'Equipment IDs in prepared PDF' })).toContainText(browserEquipment.equipment_id);
+    const beforeDiscard = await scalar('SELECT COUNT(*) FROM equipment_label_prints');
+    page.once('dialog', async (dialog) => {
+      assert.match(dialog.message(), /not been confirmed as physically printed/);
+      await dialog.accept();
+    });
+    await page.getByRole('combobox', { name: 'Used positions on first sheet' }).selectOption('1');
+    await expect(page.getByRole('list', { name: 'Equipment IDs in prepared PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Confirm physically printed' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Generate / download equipment PDF' })).toBeEnabled();
+    assert.equal(await scalar('SELECT COUNT(*) FROM equipment_label_prints'), beforeDiscard);
     await context.setExtraHTTPHeaders({ 'Cf-Access-Jwt-Assertion': tokens.editor });
 
     const beforeIssue = await Promise.all(parts.map((id) => get(`/api/parts/${id}`)));
