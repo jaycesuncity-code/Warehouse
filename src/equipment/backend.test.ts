@@ -111,4 +111,67 @@ describe('scoped D1 equipment workflows',()=>{
   const invalid=await call('/equipment/'+equipmentId,'PATCH',{version:2,changes:{customer_id:'cus-22222222'}});
   expect(invalid.status).toBe(400);
  });
+
+ it('does not duplicate an unregistered receipt after a lost response and a same-key retry',async()=>{
+  const body={customer_id:stockCustomer,equipment_type_id:furnace,model:'Test fan coil',serial_number:'SER-42',po_number:'00042'};
+  const first=await call('/equipment/receive-unregistered','POST',body,'unregistered-retry-42');
+  const retry=await call('/equipment/receive-unregistered','POST',body,'unregistered-retry-42');
+  expect(first.status).toBe(201);
+  expect(retry.status).toBe(201);
+  expect((retry.body.unit as {equipment_id:string}).equipment_id).toBe((first.body.unit as {equipment_id:string}).equipment_id);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment').get()).toEqual({n:1});
+  const mismatch=await call('/equipment/receive-unregistered','POST',{...body,model:'Different model'},'unregistered-retry-42');
+  expect(mismatch.status).toBe(409);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment').get()).toEqual({n:1});
+ });
+
+ it('replays customer creation with its original ID, but does not silently collapse legitimate name matches',async()=>{
+  const first=await call('/customers','POST',{display_name:'Smith Residence'},'customer-save-42');
+  const retry=await call('/customers','POST',{display_name:'Smith Residence'},'customer-save-42');
+  expect(first.status).toBe(201);
+  expect(retry.body.customer).toEqual(first.body.customer);
+  expect(db.sqlite.prepare("SELECT COUNT(*) AS n FROM customers WHERE display_name='Smith Residence'").get()).toEqual({n:1});
+  const intentional=await call('/customers','POST',{display_name:'Smith Residence'},'customer-save-43');
+  expect(intentional.status).toBe(201);
+  expect((intentional.body.customer as {customer_id:string}).customer_id).not.toBe((first.body.customer as {customer_id:string}).customer_id);
+  expect((intentional.body.similar_customers as unknown[]).length).toBeGreaterThan(0);
+ });
+
+ it('returns the same label preparation and print-confirmation receipts when responses are lost',async()=>{
+  const ordered=await call('/equipment/orders','POST',{
+   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:2}]
+  },'labels-order-42');
+  const request={equipment_ids:ordered.body.unit_ids as string[],skip_first_positions:3};
+  const a=await call('/equipment/labels/prepare','POST',request,'prepare-labels-42');
+  const b=await call('/equipment/labels/prepare','POST',request,'prepare-labels-42');
+  expect(a.status).toBe(200);
+  expect(b.body.labels).toEqual(a.body.labels);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment_label_prints').get()).toEqual({n:2});
+  const prepared_print_ids=(a.body.labels as {label_print_id:string}[]).map(l=>l.label_print_id);
+  const confirmed=await call('/equipment/labels/confirm','POST',{prepared_print_ids},'confirm-labels-42');
+  const replay=await call('/equipment/labels/confirm','POST',{prepared_print_ids},'confirm-labels-42');
+  expect(confirmed.status).toBe(200);
+  expect(replay.body).toEqual(confirmed.body);
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM equipment_label_prints WHERE confirmed_printed_at IS NOT NULL').get()).toEqual({n:2});
+  expect(db.sqlite.prepare('SELECT COUNT(*) AS n FROM stock').get()).toEqual({n:0});
+ });
+
+ it('replays marker placement without changing version twice and rejects stale placement',async()=>{
+  const order=await call('/equipment/orders','POST',{
+   header:{customer_id:stockCustomer},lines:[{equipment_type_id:furnace,quantity:1}]
+  },'map-order-42');
+  const equipmentId=(order.body.unit_ids as string[])[0];
+  const body={version:1,x_in:120,y_in:500};
+  const placed=await call('/equipment/'+equipmentId+'/place','POST',body,'map-place-key-42');
+  const again=await call('/equipment/'+equipmentId+'/place','POST',body,'map-place-key-42');
+  expect(placed.status).toBe(200);
+  expect(again.body).toEqual(placed.body);
+  const current=await call('/equipment/'+equipmentId);
+  expect((current.body.unit as {version:number}).version).toBe(2);
+  expect((await call('/equipment/'+equipmentId+'/place','POST',{version:1,x_in:121,y_in:501},'map-place-key-43')).status).toBe(409);
+  const markers=await call('/equipment/map-markers');
+  expect((markers.body.items as {equipment_id:string;marker_x_in:number;marker_y_in:number}[])
+   .some(marker=>marker.equipment_id===equipmentId&&marker.marker_x_in===120&&marker.marker_y_in===500)).toBe(true);
+  expect(db.sqlite.prepare("SELECT COUNT(*) AS n FROM events WHERE action='place' AND entity='equipment'").get()).toEqual({n:1});
+ });
 });

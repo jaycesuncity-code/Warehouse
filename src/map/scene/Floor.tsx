@@ -8,7 +8,7 @@ import * as THREE from "three";
 import type { Opening, Point, Zone } from "../../shared/contract";
 import { FOOTPRINT_X_IN, FOOTPRINT_Y_IN, round16 } from "../units";
 import { addShelfAt, patchOpening, patchZone, select } from "../actions";
-import { editing, getMap, isAdmin, setMap, useMap } from "../store";
+import { editing, getMap, isAdmin, setMap, toast, useMap } from "../store";
 import { floorPointAt } from "./common";
 import { rig } from "./CameraRig";
 import { pendingEquipmentPlacement, placeEquipmentAt } from "./EquipmentMarkers";
@@ -31,7 +31,7 @@ export function FloorEvents() {
     const p = { x: e.point.x, y: e.point.z };
     if (pendingEquipmentPlacement()) {
       e.stopPropagation();
-      void placeEquipmentAt(p.x,p.y).catch(error=>window.alert(error instanceof Error?error.message:String(error)));
+      void placeEquipmentAt(p.x,p.y).catch(error=>toast(error instanceof Error?error.message:String(error),"error"));
       return;
     }
     if (editing(s) && s.tool?.kind === "add-shelf") {
@@ -95,6 +95,10 @@ function Handle({
   const r = 7 / zoom;
   const down = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    if(pendingEquipmentPlacement()){
+      toast('Choose an open floor location; map edit handles cannot be moved during equipment placement.','warn');
+      return;
+    }
     const dom = gl.domElement;
     if (controls) controls.enabled = false;
     let last: Point = p;

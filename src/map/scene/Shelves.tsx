@@ -7,7 +7,8 @@ import * as THREE from "three";
 import type { LayoutShelf, LayoutSlot, ShelfRow } from "../../shared/contract";
 import { DECK_THICKNESS_IN, slotRect } from "../units";
 import { DECK, SHELF_STEEL, slotColor, zoneColor, type ColorBy } from "../colors";
-import { useMap } from "../store";
+import { toast, useMap } from "../store";
+import { pendingEquipmentPlacement } from "./EquipmentMarkers";
 import { capacityFor, shelfBoxMatrix, tmpColor, UNIT_BOX } from "./common";
 import { useShelfPointer } from "./Interaction";
 
@@ -183,6 +184,11 @@ export function Shelves() {
   }, [built, caps.posts, caps.decks, caps.lips, caps.bins, caps.hits, invalidate]);
 
   const onHitDown = (e: ThreeEvent<PointerEvent>) => {
+    if(pendingEquipmentPlacement()){
+      e.stopPropagation();
+      toast('Choose open floor space; shelves and bins cannot be moved during equipment placement.','warn');
+      return;
+    }
     if (e.instanceId == null) return;
     const shelfId = built.hitIds[e.instanceId];
     // Was a bin of this shelf under the pointer too? (bins sit inside the pick box)

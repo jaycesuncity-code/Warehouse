@@ -312,6 +312,50 @@ async function browserSmoke({ parts, staging, stagingShelf, employee, kit }) {
     await page.getByPlaceholder('Search customer, model, PO, serial, equipment ID').fill('0007732');
     await page.getByRole('button', { name: 'Search',exact:true }).click();
     await expect(page.getByRole('link',{name:'Show on warehouse map'})).toBeVisible();
+    // Real isolated-D1 browser regression: follow each equipment-to-map path and
+    // check the actual Three.js camera target, not just that a link exists.
+    async function assertEquipmentMapFocus(view = 'plan') {
+      await expect(page.getByTestId('map-canvas')).toBeVisible();
+      await page.waitForFunction(
+        ({ x, y, view, browserEquipmentId }) => {
+          const camera = window.__mapDebug?.camera();
+          const marker = window.__mapDebug?.equipmentMarker(browserEquipmentId);
+          return camera?.view === view &&
+            Math.abs(camera.target[0] - x) < 2 &&
+            Math.abs(camera.target[2] - y) < 2 &&
+            marker?.highlighted === true && marker.scale > 1.5 &&
+            Math.abs(marker.x - x) < 0.01 && Math.abs(marker.y - y) < 0.01;
+        },
+        { x: 120, y: 500, view, browserEquipmentId: browserEquipment.equipment_id },
+        { timeout: 20_000 },
+      );
+    }
+
+    // Inventory result -> top-down map -> orbit -> click the actual marker.
+    await page.getByRole('link', { name: 'Show on warehouse map' }).click();
+    await expect(page).toHaveURL(new RegExp('/map/\\?equipment=' + browserEquipment.equipment_id));
+    await assertEquipmentMapFocus('plan');
+    await page.getByTestId('view-orbit').click();
+    await assertEquipmentMapFocus('orbit');
+    await page.getByTestId('view-plan').click();
+    await assertEquipmentMapFocus('plan');
+    const markerPoint = await page.evaluate(() => window.__mapDebug.project(120, 500, 11));
+    await page.mouse.click(markerPoint.x, markerPoint.y);
+    await expect(page).toHaveURL(new RegExp('/equipment/\\?id=' + browserEquipment.equipment_id));
+
+    // Individual equipment record -> map (default top-down mode).
+    await expect(page.getByRole('link', { name: 'Find staged equipment on map' })).toBeVisible();
+    await page.getByRole('link', { name: 'Find staged equipment on map' }).click();
+    await assertEquipmentMapFocus('plan');
+
+    // QR lookup record -> map. The scan route resolves the canonical eqp- ID.
+    await visit('/equipment/');
+    await page.getByRole('button', { name: 'Receive / scan' }).click();
+    await page.getByPlaceholder('Scan or enter eqp- ID').fill(browserEquipment.equipment_id);
+    await page.getByRole('button', { name: 'Find QR' }).click();
+    await expect(page.getByRole('link', { name: 'Find staged equipment on map' })).toBeVisible();
+    await page.getByRole('link', { name: 'Find staged equipment on map' }).click();
+    await assertEquipmentMapFocus('plan');
     await context.setExtraHTTPHeaders({ 'Cf-Access-Jwt-Assertion': tokens.editor });
 
     const beforeIssue = await Promise.all(parts.map((id) => get(`/api/parts/${id}`)));

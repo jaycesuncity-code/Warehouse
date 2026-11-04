@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { isEquipmentId } from '../shared/ids';
 import { avery5821Pdf, type EquipmentLabel } from './pdf';
 import { StaffPanel } from './StaffPanel';
+import { browserEquipmentStore, EquipmentApiError, createMutation, failureDisposition, performMutation, readPendingMutation, type MutationMethod, type PendingMutation } from './recoverable';
 import '../shared/ui/styles.css';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,18 +14,28 @@ const button = 'rounded-lg px-4 py-3 font-bold border border-[#6B1A2C] bg-[#6B1A
 async function req(path:string,method='GET',body?:R,mutationKey?:string):Promise<R> {
  const response = await fetch('/api'+path,{method,headers:body?{'Content-Type':'application/json','Idempotency-Key':mutationKey??crypto.randomUUID()}:undefined,body:body?JSON.stringify(body):undefined,credentials:'same-origin'});
  let parsed:R;
- try{parsed=await response.json();}catch{throw new Error('Server returned an invalid response. Check the warehouse deployment.');}
- if(!response.ok)throw new Error(parsed.message||'Request failed ('+response.status+')');
+ try{parsed=await response.json();}catch{
+  if(response.status===401||response.status===403)
+   throw new EquipmentApiError(response.status,'forbidden','You are not authorized to complete this equipment request.');
+  if(response.status>=400&&response.status<500&&response.status!==409&&response.status!==408)
+   throw new EquipmentApiError(response.status,'request_rejected','Server rejected this equipment request (HTTP '+response.status+') with an invalid response body.');
+  throw new Error('Server returned an invalid response. Check the warehouse deployment.');
+ }
+ if(!response.ok)throw new EquipmentApiError(response.status,text(parsed.error||'request_failed'),text(parsed.message||'Request failed ('+response.status+')'));
  return parsed;
 }
 const text = (value:unknown) => String(value??'');
 const errorText = (e:unknown) => e instanceof Error?e.message:String(e);
+// Preferences are optional; their storage failure must not misreport a saved order as failed.
+function rememberEquipmentChoice(key:string,value:string){
+ try{browserEquipmentStore.setItem(key,value);}catch{/* Nonessential preference. */}
+}
 function App(){
  const [tab,setTab]=useState<Tab>('inventory'),[me,setMe]=useState<R|null>(null),[types,setTypes]=useState<R[]>([]),[customers,setCustomers]=useState<R[]>([]);
  const [units,setUnits]=useState<R[]>([]),[reviews,setReviews]=useState<R[]>([]),[zones,setZones]=useState<R[]>([]),[stats,setStats]=useState<R|null>(null),[reprints,setReprints]=useState<R[]>([]),[notice,setNotice]=useState(''),[error,setError]=useState('');
  const [q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]);
  const [customerSearch,setCustomerSearch]=useState(''),[newCustomer,setNewCustomer]=useState(''),[nearDuplicates,setNearDuplicates]=useState<R[]>([]);
- const [customerId,setCustomerId]=useState(sessionStorage.getItem('equipment.customer')??'cus-stk22222'),[po,setPo]=useState(sessionStorage.getItem('equipment.po')??'');
+ const [customerId,setCustomerId]=useState(browserEquipmentStore.getItem('equipment.customer')??'cus-stk22222'),[po,setPo]=useState(browserEquipmentStore.getItem('equipment.po')??'');
  const [requester,setRequester]=useState(''),[expected,setExpected]=useState(''),[vendor,setVendor]=useState('');
  const [lines,setLines]=useState<R[]>([{equipment_type_id:'',manufacturer:'',model:'',quantity:1}]);
  const [modelHints,setModelHints]=useState<Record<string,string[]>>({});
@@ -34,9 +45,11 @@ function App(){
  const [lastBatch,setLastBatch]=useState(''),[skip,setSkip]=useState(0),[printIds,setPrintIds]=useState<string[]>([]);
  const [lastPdf,setLastPdf]=useState<Blob|null>(null);
  const [busy,setBusy]=useState(false),writeLock=useRef(false);
+ const [pendingMutation,setPendingMutation]=useState<PendingMutation|null>(()=>readPendingMutation(browserEquipmentStore));
  const [batchSearch,setBatchSearch]=useState(''),[batches,setBatches]=useState<R[]>([]);
  const [batchData,setBatchData]=useState<R|null>(null),[batchOffset,setBatchOffset]=useState<number|null>(null);
  const [inventoryOffset,setInventoryOffset]=useState<number|null>(null);
+ const inventoryRequest=useRef(0),batchRequest=useRef(0),unitRequest=useRef(0);
  const [correction,setCorrection]=useState<R>({});
  const [customerQuery,setCustomerQuery]=useState(''),[mergeCustomers,setMergeCustomers]=useState<R[]>([]);
  const [mergeFrom,setMergeFrom]=useState(''),[mergeInto,setMergeInto]=useState(''),[mergePreview,setMergePreview]=useState<R|null>(null);
@@ -44,19 +57,76 @@ function App(){
  const can=(p:string)=>rights.includes('admin')||rights.includes(p);
  function report(e:unknown){setError(errorText(e));setNotice('');}
  function success(message:string){setNotice(message);setError('');}
+ function downloadEquipmentPdf(result:R){
+  const blob=avery5821Pdf(result.labels as EquipmentLabel[]);
+  setLastPdf(blob);setPrintIds(result.labels.map((x:R)=>x.label_print_id));
+  const href=URL.createObjectURL(blob),anchor=document.createElement('a');
+  anchor.href=href;anchor.download='sun-city-equipment-avery-5821.pdf';anchor.click();
+  setTimeout(()=>URL.revokeObjectURL(href),20000);
+ }
+ async function mutate(kind:string,path:string,method:MutationMethod,body:R,recover?:PendingMutation):Promise<R>{
+  if(writeLock.current)throw new Error('Another equipment save is in progress.');
+  writeLock.current=true;setBusy(true);
+  const attempt=recover??createMutation(kind,path,method,body);
+  setPendingMutation(attempt);
+  try{
+   return await performMutation(browserEquipmentStore,attempt,async saved=>{
+    const result=await req(saved.path,saved.method,saved.body,saved.key);
+    if(saved.kind==='labels')downloadEquipmentPdf(result);
+    return result;
+   },!!recover);
+  }catch(e){
+   if(failureDisposition(e)==='uncertain')
+    throw new Error(errorText(e)+' Result uncertain: recover the original request, not a new submission.', { cause: e });
+   if(e instanceof EquipmentApiError&&e.status===409&&e.code==='idempotency_conflict')
+    throw new Error(errorText(e)+' Check saved orders or equipment records before submitting a new request.', { cause: e });
+   throw e;
+  }finally{
+   setPendingMutation(readPendingMutation(browserEquipmentStore));
+   writeLock.current=false;setBusy(false);
+  }
+ }
+ async function recoverPending(){
+  const attempt=readPendingMutation(browserEquipmentStore);
+  if(!attempt){report(new Error('There is no pending request to recover.'));return;}
+  try{
+   const result=await mutate(attempt.kind,attempt.path,attempt.method,attempt.body,attempt);
+   if(attempt.kind==='order'){
+    setLastBatch(result.batch_id);setSelected(result.unit_ids);setTab('labels');
+   }else if(attempt.kind==='customer'){
+    setCustomerId(result.customer.customer_id);rememberEquipmentChoice('equipment.customer',result.customer.customer_id);
+    setNewCustomer('');await refresh();
+   }else if(attempt.kind==='unregistered'){
+    setUnit(result.unit);setScan(result.unit.equipment_id);setUnregisteredType('');setTab('receive');
+   }else if(attempt.kind==='labels')setTab('labels');
+   else if(attempt.kind==='confirm')setPrintIds([]);
+   else if(attempt.kind==='receive'){
+    setUnit(null);setScan('');
+   }else if(attempt.kind==='cancelBatch'){
+    setSelected([]);setPrintIds([]);setLastPdf(null);
+   }
+   success('Recovered the original '+attempt.kind+' request without resubmitting a new operation.');
+   await loadInventory();
+   if(attempt.kind==='receiveBatch'||attempt.kind==='cancelBatch')await loadBatches();
+  }catch(e){report(e);}
+ }
  async function refresh(){
    const [a,b,c,d]=await Promise.all([req('/me'),req('/equipment/types'),req('/customers'),req('/zones')]);
    setMe(a);setTypes(b.items);setCustomers(c.items);setZones(d.items);
  }
  async function loadInventory(query=q,offset=0){
+   const request=++inventoryRequest.current;
    try{const [items,totals]=await Promise.all([req('/equipment?q='+encodeURIComponent(query)+'&limit=100&offset='+offset),req('/equipment/reports')]);
+    if(request!==inventoryRequest.current)return;
     setUnits(old=>offset?[...old,...items.items]:items.items);setStats(totals);setInventoryOffset(items.next_offset??null);}
-   catch(e){report(e);}
+   catch(e){if(request===inventoryRequest.current)report(e);}
  }
  async function loadBatches(query=batchSearch,offset=0){
+   const request=++batchRequest.current;
    try{const result=await req('/equipment/batches?q='+encodeURIComponent(query)+'&limit=25&offset='+offset);
+    if(request!==batchRequest.current)return;
     setBatches(old=>offset?[...old,...result.items]:result.items);setBatchOffset(result.next_offset??null);}
-   catch(e){report(e);}
+   catch(e){if(request===batchRequest.current)report(e);}
  }
  async function openBatch(batchId:string){
    try{const result=await req('/equipment/batches/'+batchId);
@@ -68,9 +138,21 @@ function App(){
    try{setReviews((await req('/equipment/reviews')).items);}
    catch(e){report(e);}
  }
- useEffect(()=>{refresh().catch(report);loadInventory('');},[]);
- useEffect(()=>{if(tab==='reviews')loadReviews();if(tab==='inventory')loadInventory();if(tab==='receive')void loadBatches();if(tab==='labels')req('/equipment/labels/reprint-needed').then(r=>setReprints(r.items)).catch(report);},[tab]);
- useEffect(()=>{if(scan&&isEquipmentId(scan.trim().toLowerCase()))void findUnit(scan);},[]);
+ // These requests should run on tab changes, not on each keystroke in a search field.
+ const loadTab=useEffectEvent((current:Tab)=>{
+   if(current==='reviews')void loadReviews();
+   if(current==='inventory')void loadInventory();
+   if(current==='receive')void loadBatches();
+   if(current==='labels')void req('/equipment/labels/reprint-needed').then(r=>setReprints(r.items)).catch(report);
+ });
+ const findInitialUnit=useEffectEvent((id:string)=>{void findUnit(id);});
+ useEffect(()=>{void refresh().catch(report);},[]);
+ useEffect(()=>{loadTab(tab);},[tab]);
+ // A URL deep link is a one-time scan. Typing in the scanner must not auto-submit.
+ useEffect(()=>{
+   const id=new URLSearchParams(window.location.search).get('id')??'';
+   if(isEquipmentId(id.trim().toLowerCase()))findInitialUnit(id);
+ },[]);
  useEffect(()=>{
    const timer=setTimeout(()=>{req('/customers?q='+encodeURIComponent(customerSearch)).then(r=>setCustomers(r.items)).catch(()=>undefined);},200);
    return ()=>clearTimeout(timer);
@@ -97,55 +179,44 @@ function App(){
  async function updateDisposition(){
   if(!unit)return;
   try{
-   const updated=await req('/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes:disposition==='returned'?{status:disposition,return_reason:returnReason,return_destination:returnDestination}:{status:disposition}});
+   const updated=await mutate('status','/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes:disposition==='returned'?{status:disposition,return_reason:returnReason,return_destination:returnDestination}:{status:disposition}});
    setUnit(updated.unit);setDisposition(text(updated.unit.status));success('Equipment status changed to '+disposition+'.');
    await loadInventory();
   }catch(e){report(e);}
  }
  async function createCustomer(){
   try{
-    const result=await req('/customers','POST',{display_name:newCustomer.trim()});
-    await refresh();setCustomerId(result.customer.customer_id);sessionStorage.setItem('equipment.customer',result.customer.customer_id);setNewCustomer('');
+    const result=await mutate('customer','/customers','POST',{display_name:newCustomer.trim()});
+    await refresh();setCustomerId(result.customer.customer_id);rememberEquipmentChoice('equipment.customer',result.customer.customer_id);setNewCustomer('');
     success(result.similar_customers.length?'Customer created. Similar existing customers: '+result.similar_customers.map((c:R)=>c.display_name).join(', '):'Customer added.');
   }catch(e){report(e);}
  }
- async function submitOrder(pending?:{key:string;body:R}){
-  if(writeLock.current)return;
-  const body=pending?.body??{header:{customer_id:customerId,po_number:po,requested_by_name:requester||me?.name,expected_date:expected||null,vendor},
-    lines:lines.map(l=>({...l,quantity:Number(l.quantity)||1}))};
-  const cached=sessionStorage.getItem('equipment.pending_order');
-  if(cached&&!pending){report(new Error('A previous order has an uncertain result. Recover that order before creating another.'));return;}
-  const attempt=pending??{key:crypto.randomUUID(),body};
-  writeLock.current=true;setBusy(true);
-  sessionStorage.setItem('equipment.pending_order',JSON.stringify(attempt));
+ async function order(){
+  const body={header:{customer_id:customerId,po_number:po,requested_by_name:requester||me?.name,expected_date:expected||null,vendor},
+   lines:lines.map(l=>({...l,quantity:Number(l.quantity)||1}))};
   try{
-    const result=await req('/equipment/orders','POST',attempt.body,attempt.key);
-    sessionStorage.removeItem('equipment.pending_order');
-    sessionStorage.setItem('equipment.po',po);sessionStorage.setItem('equipment.customer',customerId);
-    setLastBatch(result.batch_id);setSelected(result.unit_ids);
-    success('Ordered '+result.unit_ids.length+' individual units. This submission has a permanent batch ID.');
-    setTab('labels');await loadInventory();
-  }catch(e){report(new Error(errorText(e)+' The order may have saved. Use Recover pending order to retry safely with the same request key.'));}
-  finally{writeLock.current=false;setBusy(false);}
+   const result=await mutate('order','/equipment/orders','POST',body);
+   rememberEquipmentChoice('equipment.po',po);rememberEquipmentChoice('equipment.customer',customerId);
+   setLastBatch(result.batch_id);setSelected(result.unit_ids);
+   success('Ordered '+result.unit_ids.length+' individual units. This submission has a permanent batch ID.');
+   setTab('labels');await loadInventory();
+  }catch(e){report(e);}
  }
- async function retryPendingOrder(){
-  const raw=sessionStorage.getItem('equipment.pending_order');
-  if(!raw){report(new Error('No pending order found in this browser. Search existing batches by PO.'));return;}
-  try{const attempt=JSON.parse(raw) as {key:string;body:R};await submitOrder(attempt);}catch(e){report(e);}
- }
- async function order(){await submitOrder();}
  async function findUnit(value:string){
+  const request=++unitRequest.current;
   const id=value.trim().toLowerCase();
   if(!isEquipmentId(id)){report(new Error('Scan or enter an eqp- equipment ID.'));return;}
-  try{const result=await req('/equipment/'+encodeURIComponent(id));setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setZoneId(text(result.unit.zone_id));setDisposition(text(result.unit.status));setReturnReason(text(result.unit.return_reason));setReturnDestination(text(result.unit.return_destination||'warehouse'));
+  try{const result=await req('/equipment/'+encodeURIComponent(id));
+  if(request!==unitRequest.current)return;
+  setUnit(result.unit);setSerial(text(result.unit.serial_number));setModel(text(result.unit.confirmed_model||result.unit.ordered_model));setLocationNote(text(result.unit.location_note));setZoneId(text(result.unit.zone_id));setDisposition(text(result.unit.status));setReturnReason(text(result.unit.return_reason));setReturnDestination(text(result.unit.return_destination||'warehouse'));
   setCorrection({customer_id:result.unit.customer_id,po_number:result.unit.po_number,manufacturer:result.unit.manufacturer,ordered_model:result.unit.ordered_model,expected_date:result.unit.expected_date??'',vendor:result.unit.vendor,notes:result.unit.notes,serial_number:result.unit.serial_number??'',confirmed_model:result.unit.confirmed_model??'',zone_id:result.unit.zone_id??'',location_note:result.unit.location_note??''});
   setTab('receive');success('Equipment found.');}
-  catch(e){report(e);}
+  catch(e){if(request===unitRequest.current)report(e);}
  }
  async function receive(){
   if(!unit)return;
   try{
-   await req('/equipment/'+unit.equipment_id+'/receive','POST',{version:unit.version,serial_number:serial,confirmed_model:model,location_note:locationNote,zone_id:zoneId||null});
+   await mutate('receive','/equipment/'+unit.equipment_id+'/receive','POST',{version:unit.version,serial_number:serial,confirmed_model:model,location_note:locationNote,zone_id:zoneId||null});
    success('Received '+unit.equipment_id+'. Ready for another QR scan.');setUnit(null);setScan('');setSerial('');await loadInventory();
   }catch(e){report(e);}
  }
@@ -153,22 +224,23 @@ function App(){
   try{
    const type=unregisteredType;
    if(!type)throw new Error('No equipment types available.');
-   const result=await req('/equipment/receive-unregistered','POST',{customer_id:customerId,equipment_type_id:type,model:model,serial_number:serial,po_number:po});
-   setUnit(result.unit);setScan(result.unit.equipment_id);success('Unregistered equipment saved and flagged for review. Print its new label.');
+   const result=await mutate('unregistered','/equipment/receive-unregistered','POST',{customer_id:customerId,equipment_type_id:type,model:model,serial_number:serial,po_number:po});
+   setUnit(result.unit);setScan(result.unit.equipment_id);setUnregisteredType('');
+   success('Unregistered equipment saved and flagged for review. Print its new label.');
    await loadInventory();
   }catch(e){report(e);}
  }
  async function receiveBatch(){
   if(!lastBatch)return;
   if(!window.confirm('Receive every remaining ordered unit in this batch without serial numbers?'))return;
-  try{const result=await req('/equipment/batches/'+lastBatch+'/receive','POST',{serials_later:true});
+   try{const result=await mutate('receiveBatch','/equipment/batches/'+lastBatch+'/receive','POST',{serials_later:true});
    success('Received '+result.affected+' remaining units; serial numbers can be captured later.');await openBatch(lastBatch);await loadInventory();
   }catch(e){report(e);}
  }
  async function cancelBatch(){
   if(!lastBatch||!window.confirm('Cancel all units still ordered in this batch? Received units will not be cancelled.'))return;
   try{
-   const result=await req('/equipment/batches/'+lastBatch+'/cancel','POST',{});
+   const result=await mutate('cancelBatch','/equipment/batches/'+lastBatch+'/cancel','POST',{});
    setSelected([]);setPrintIds([]);setLastPdf(null);
    success('Cancelled '+result.affected+' remaining ordered units. The audit history is preserved.');
    await loadInventory();
@@ -176,20 +248,23 @@ function App(){
  }
  async function prepare(){
   try{
+   if(printIds.length&&lastPdf){
+    const href=URL.createObjectURL(lastPdf),a=document.createElement('a');
+    a.href=href;a.download='sun-city-equipment-avery-5821.pdf';a.click();
+    setTimeout(()=>URL.revokeObjectURL(href),20000);
+    success('Re-downloaded the existing print job without creating additional label records.');
+    return;
+   }
    let ids=selected.length?selected:unit?[unit.equipment_id]:[];
    if(lastBatch&&!ids.length){const batch=await req('/equipment/batches/'+lastBatch);ids=batch.units.map((u:R)=>u.equipment_id);}
    if(!ids.length)throw new Error('Select equipment from Inventory first.');
-   const result=await req('/equipment/labels/prepare','POST',{equipment_ids:ids,skip_first_positions:Number(skip)});
-   const blob=avery5821Pdf(result.labels as EquipmentLabel[]);
-   setLastPdf(blob);setPrintIds(result.labels.map((x:R)=>x.label_print_id));
-   const href=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=href;anchor.download='sun-city-equipment-avery-5821.pdf';anchor.click();
-   setTimeout(()=>URL.revokeObjectURL(href),20000);
+   await mutate('labels','/equipment/labels/prepare','POST',{equipment_ids:ids,skip_first_positions:Number(skip)});
    success('Avery 5821 PDF generated. Print at 100% / Actual Size, then confirm only if printed successfully.');
   }catch(e){report(e);}
  }
  async function confirmPrint(){
   try{if(!printIds.length)throw new Error('Generate PDF before confirming a print.');
-   const result=await req('/equipment/labels/confirm','POST',{prepared_print_ids:printIds});
+   const result=await mutate('confirm','/equipment/labels/confirm','POST',{prepared_print_ids:printIds});
    success('Confirmed '+result.confirmed+' printed equipment labels.');setPrintIds([]);
   }catch(e){report(e);}
  }
@@ -204,7 +279,7 @@ function App(){
   const original=unit as R;
   for(const key of Object.keys(changes))if(text(changes[key])===text(original[key]))delete changes[key];
   if(!Object.keys(changes).length){success('No changes to save.');return;}
-  try{const saved=await req('/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes});
+  try{const saved=await mutate('correction','/equipment/'+unit.equipment_id,'PATCH',{version:unit.version,changes});
    setUnit(saved.unit);success('Equipment record updated and audited.');await loadInventory();}
   catch(e){report(e);}
  }
@@ -220,12 +295,12 @@ function App(){
  async function executeCustomerMerge(){
   if(!mergePreview)return;
   if(!window.confirm('Merge '+mergePreview.from.display_name+' into '+mergePreview.into.display_name+'? This changes customer references for '+mergePreview.affected_units+' equipment units.'))return;
-  try{await req('/customers/'+mergeFrom+'/merge','POST',{into_customer_id:mergeInto});
+  try{await mutate('merge','/customers/'+mergeFrom+'/merge','POST',{into_customer_id:mergeInto});
    setMergePreview(null);setMergeFrom('');setMergeInto('');success('Customer records merged.');await searchMergeCustomers();await loadInventory();}
   catch(e){report(e);}
  }
  async function resolveReview(item:R){
-  try{await req('/equipment/reviews/'+item.review_id,'PATCH',{version:item.version,state:'resolved'});await loadReviews();success('Review item resolved.');}
+  try{await mutate('review','/equipment/reviews/'+item.review_id,'PATCH',{version:item.version,state:'resolved'});await loadReviews();success('Review item resolved.');}
   catch(e){report(e);}
  }
  return <div className="min-h-screen bg-[#f4f3f3] text-gray-900">
@@ -239,6 +314,11 @@ function App(){
  </nav>
  {error&&<div role="alert" className="mb-4 p-3 border border-red-500 bg-red-50 text-red-900 rounded-lg">{error}</div>}
  {notice&&<div role="status" className="mb-4 p-3 border border-[#C9A84C] bg-yellow-50 rounded-lg">{notice}</div>}
+ {pendingMutation&&!busy&&<section aria-label="Pending equipment change" className="mb-4 rounded-lg border border-amber-500 bg-amber-50 p-3">
+  <p className="font-bold">Uncertain {pendingMutation.kind} request</p>
+  <p>Do not submit another change. Recover the original request using its exact saved key and body. If necessary, search saved equipment or batches to verify its status.</p>
+  <button type="button" className={button} onClick={()=>void recoverPending()}>Recover original request</button>
+ </section>}
  {!me&&<p className="p-3 bg-white rounded-lg">Checking sign-in and equipment permissions…</p>}
  {tab==='inventory'&&<section className="space-y-3">
   <h2 className="text-xl font-bold">Equipment inventory</h2>
@@ -259,7 +339,7 @@ function App(){
   <h2 className="text-xl font-bold">Order equipment</h2><p>Enter the order header once. Every quantity becomes a separate tracked unit with its own QR code.</p>
   <label className="block font-semibold">Customer <input value={customerSearch} onChange={e=>setCustomerSearch(e.target.value)} className={base} placeholder="Find customer"/></label>
   <div className="max-h-40 overflow-y-auto border rounded-lg">
-   {filteredCustomers.map(c=><button type="button" key={c.customer_id} className={'block w-full text-left p-2 border-b '+(customerId===c.customer_id?'bg-yellow-100 font-bold':'')} onClick={()=>{setCustomerId(c.customer_id);sessionStorage.setItem('equipment.customer',c.customer_id);}}>{c.display_name}{customerId===c.customer_id?' ✓':''}</button>)}
+   {filteredCustomers.map(c=><button type="button" key={c.customer_id} className={'block w-full text-left p-2 border-b '+(customerId===c.customer_id?'bg-yellow-100 font-bold':'')} onClick={()=>{setCustomerId(c.customer_id);rememberEquipmentChoice('equipment.customer',c.customer_id);}}>{c.display_name}{customerId===c.customer_id?' ✓':''}</button>)}
   </div>
   <div className="flex gap-2"><input className={base} placeholder="New customer name" value={newCustomer} onChange={e=>setNewCustomer(e.target.value)}/><button className={button} onClick={createCustomer} disabled={!newCustomer.trim()}>Add customer</button></div>
   {nearDuplicates.length>0&&<p className="p-2 bg-yellow-50 border rounded-lg text-sm">Similar customers already exist: {nearDuplicates.map(c=>text(c.display_name)).join(', ')}. Check before creating another; you can still add this customer.</p>}
@@ -278,11 +358,7 @@ function App(){
    <button className="underline" disabled={lines.length===1} onClick={()=>setLines(s=>s.filter((_,j)=>j!==i))}>Remove line</button>
   </div>)}
   <div className="flex flex-wrap gap-2"><button className={base} style={{width:'auto'}} disabled={lines.length>=10} onClick={()=>setLines(s=>[...s,{equipment_type_id:'',manufacturer:'',model:'',quantity:1}])}>+ Add line</button>
-   <button className={button} disabled={!can('order_equipment')||busy||!!sessionStorage.getItem('equipment.pending_order')} onClick={order}>{busy?'Saving…':'Save'} {lines.reduce((n,l)=>n+(Number(l.quantity)||0),0)} equipment units</button></div>
-  {sessionStorage.getItem('equipment.pending_order')&&<div className="border border-amber-400 bg-amber-50 rounded-lg p-3">
-    <p className="font-bold">Uncertain prior order</p><p>Recover the original submission using the same request ID; this cannot create duplicate units.</p>
-    <button className={button} disabled={busy} onClick={()=>void retryPendingOrder()}>Recover pending order</button>
-   </div>}
+   <button className={button} disabled={!can('order_equipment')||busy||!!pendingMutation} onClick={order}>{busy?'Saving…':'Save'} {lines.reduce((n,l)=>n+(Number(l.quantity)||0),0)} equipment units</button></div>
   {!can('order_equipment')&&<p role="note">Your administrator must grant <code>order_equipment</code> to place orders.</p>}
  </section>}
  {tab==='receive'&&<section className="space-y-3">
@@ -368,7 +444,7 @@ function App(){
   {lastBatch&&<button className="underline text-[#6B1A2C]" onClick={cancelBatch}>Cancel remaining ordered units from last batch</button>}
   <label className="block max-w-xs">Used positions on first sheet <select className={base} value={skip} onChange={e=>{setSkip(Number(e.target.value));setLastPdf(null);setPrintIds([]);}}>{Array.from({length:8},(_,i)=><option value={i} key={i}>{i}</option>)}</select></label>
   <div className="flex gap-2 flex-wrap">
-   <button className={button} onClick={prepare} disabled={(!selected.length&&!unit&&!lastBatch)||selected.length>25}>Generate / download equipment PDF</button>
+   <button className={button} onClick={prepare} disabled={busy||(!selected.length&&!unit&&!lastBatch)||selected.length>25}>{printIds.length&&lastPdf?'Re-download same equipment PDF':'Generate / download equipment PDF'}</button>
    <button className={base} style={{width:'auto'}} onClick={printCalibration}>Download 1-inch alignment test</button>
    <button className={button} onClick={confirmPrint} disabled={!printIds.length||!lastPdf}>Confirm physically printed</button>
   </div>
