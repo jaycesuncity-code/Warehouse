@@ -83,17 +83,29 @@ export function EquipmentMarkers(){
     window.addEventListener("equipment-markers-changed",refresh);
     return()=>{alive=false;window.removeEventListener("equipment-markers-changed",refresh);};
   },[invalidate]);
+  const openMarker=(equipmentId:string)=>{
+    if(pendingEquipmentPlacement()){
+      toast('Choose an open floor position to stage equipment; click markers only to view details outside placement mode.','warn');
+      return;
+    }
+    window.location.href="/equipment/?id="+encodeURIComponent(equipmentId);
+  };
   return <group name="equipment-markers">{markers.map(m=>
-    <mesh key={m.equipment_id} name={"equipment:"+m.equipment_id}
-      position={[m.marker_x_in,11,m.marker_y_in]}
-      scale={m.equipment_id===wanted?[1.8,1.8,1.8]:[1,1,1]}
-      onClick={e=>{e.stopPropagation();if(pendingEquipmentPlacement()){
-        toast('Choose an open floor position to stage equipment; click markers only to view details outside placement mode.','warn');
-        return;
-      }window.location.href="/equipment/?id="+encodeURIComponent(m.equipment_id);}}>
-      <sphereGeometry args={[9,12,12]}/>
-      <meshStandardMaterial color={m.equipment_id===wanted?'#FFE177':'#C9A84C'} emissive="#6B1A2C" emissiveIntensity={m.equipment_id===wanted?0.9:0.25}/>
-    </mesh>)}</group>;
+    <group key={m.equipment_id}>
+      <mesh name={"equipment:"+m.equipment_id}
+        position={[m.marker_x_in,11,m.marker_y_in]}
+        scale={m.equipment_id===wanted?[1.8,1.8,1.8]:[1,1,1]}
+        onClick={e=>{e.stopPropagation();openMarker(m.equipment_id);}}>
+        <sphereGeometry args={[9,12,12]}/>
+        <meshStandardMaterial color={m.equipment_id===wanted?'#FFE177':'#C9A84C'} emissive="#6B1A2C" emissiveIntensity={m.equipment_id===wanted?0.9:0.25}/>
+      </mesh>
+      {m.equipment_id===wanted&&<mesh name={"equipment-target:"+m.equipment_id}
+        position={[m.marker_x_in,125,m.marker_y_in]}
+        onClick={e=>{e.stopPropagation();openMarker(m.equipment_id);}}>
+        <sphereGeometry args={[16,12,12]}/>
+        <meshBasicMaterial transparent opacity={0} depthWrite={false}/>
+      </mesh>}
+    </group>)}</group>;
 }
 export function EquipmentMapPanel(){
   const [id,setId]=useState("");
